@@ -22,7 +22,7 @@
         </update>
     </changeSet>
 
-    <changeSet id="068-domain-not-null" author="antigravity">
+    <changeSet id="068-domain-not-null" author="Agaba-derrick">
         <comment>Enforce domain as required now that backfill is complete</comment>
         <addNotNullConstraint tableName="panel" schemaName="clinlims"
             columnName="domain" columnDataType="varchar(20)"/>
