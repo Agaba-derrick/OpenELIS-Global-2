@@ -87,8 +87,7 @@ public class ShipmentServiceImpl implements ShipmentService {
             if (shipment.getStatus() == null) {
                 shipment.setStatus(ShipmentStatus.PENDING);
             }
-            // Persist the audit user to the mapped DB column.
-            // sysUserId (from BaseObject) is @Transient and never written by Hibernate.
+
             if (shipment.getSystemUserId() == null) {
                 String sysUserId = shipment.getSysUserId();
                 if (sysUserId == null || sysUserId.isBlank()) {
@@ -115,12 +114,12 @@ public class ShipmentServiceImpl implements ShipmentService {
         try {
             shipment.setLastupdated(new Timestamp(System.currentTimeMillis()));
 
-            // Prevent writing NULL to the mapped sys_user_id column when a detached
-            // entity is passed from the controller without it.
             if (shipment.getSystemUserId() == null && shipment.getId() != null) {
-                Shipment existing = shipmentDAO.get(shipment.getId()).orElseThrow(
-                        () -> new IllegalArgumentException("Shipment not found with ID: " + shipment.getId()));
-                shipment.setSystemUserId(existing.getSystemUserId());
+                Integer storedUserId = shipmentDAO.findSystemUserIdById(shipment.getId());
+                if (storedUserId == null) {
+                    throw new IllegalArgumentException("Shipment not found with ID: " + shipment.getId());
+                }
+                shipment.setSystemUserId(storedUserId);
             }
 
             shipmentDAO.update(shipment);
