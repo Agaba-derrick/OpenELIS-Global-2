@@ -1,7 +1,9 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <dataset>
-    <!-- sys_user_id=1 refs rely on the seeded admin; do not add system_user
-        here -->
+    <!-- System User - ONLY columns that exist -->
+    <system_user id="1" login_name="testadmin"
+        last_name="Admin" first_name="Test" is_active="Y" is_employee="Y"
+        lastupdated="2024-01-01 00:00:00" />
 
     <!-- Storage Room -->
     <storage_room id="10000" name="Test Room" code="TESTROOM"
