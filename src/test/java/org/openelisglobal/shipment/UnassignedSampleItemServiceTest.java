@@ -47,21 +47,30 @@ public class UnassignedSampleItemServiceTest extends BaseWebContextSensitiveTest
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // BROKEN PATHS - Documenting Current Behaviour
+    // BROKEN PATHS - Documenting Current Behaviour (See Issue #3660)
     // ─────────────────────────────────────────────────────────────────────────
 
     @Test(expected = UnexpectedRollbackException.class)
     public void getAllUnassigned_throwsUnexpectedRollbackException_dueToKnownBug() {
+        // Note: UnexpectedRollbackException is an incidental Spring transaction
+        // wrapper.
+        // The root cause is a Hibernate type mismatch on sampleItem.id (Issue #3660).
         unassignedSampleItemService.getAllUnassigned();
     }
 
     @Test(expected = UnexpectedRollbackException.class)
     public void searchUnassignedByAccessionNumber_throwsUnexpectedRollbackException_dueToKnownBug() {
+        // Note: UnexpectedRollbackException is an incidental Spring transaction
+        // wrapper.
+        // The root cause is a Hibernate type mismatch on sampleItem.id (Issue #3660).
         unassignedSampleItemService.searchUnassignedByAccessionNumber("ACC-001");
     }
 
     @Test(expected = UnexpectedRollbackException.class)
     public void getSampleItemById_throwsUnexpectedRollbackException_dueToKnownBug() {
+        // Note: UnexpectedRollbackException is an incidental Spring transaction
+        // wrapper.
+        // The root cause is a Hibernate type mismatch on sampleItem.id (Issue #3660).
         unassignedSampleItemService.getSampleItemById("1");
     }
 
@@ -69,14 +78,14 @@ public class UnassignedSampleItemServiceTest extends BaseWebContextSensitiveTest
     // INTENDED BEHAVIOUR - Ignored until bug is fixed
     // ─────────────────────────────────────────────────────────────────────────
 
-    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id)")
+    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id) - Issue #3660")
     @Test
     public void getAllUnassigned_shouldReturnOnlyUnassignedSampleItems() {
         List<SampleItemDTO> results = unassignedSampleItemService.getAllUnassigned();
         assertEquals("Exactly 2 sample items are unassigned in the fixture", 2, results.size());
     }
 
-    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id)")
+    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id) - Issue #3660")
     @Test
     public void getAllUnassigned_shouldIncludeBloodSampleItemWithCorrectFields() {
         List<SampleItemDTO> results = unassignedSampleItemService.getAllUnassigned();
@@ -92,14 +101,14 @@ public class UnassignedSampleItemServiceTest extends BaseWebContextSensitiveTest
         assertEquals("CREATED", bloodItem.getReferralTests().get(0).getStatus());
     }
 
-    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id)")
+    @Ignore("Blocked by known BoxSampleItemDAOImpl bug (type mismatch on sampleItem.id) - Issue #3660")
     @Test
     public void searchUnassignedByAccessionNumber_exactMatch_shouldReturnBothSampleItemsForSameAccession() {
         List<SampleItemDTO> results = unassignedSampleItemService.searchUnassignedByAccessionNumber("ACC-001");
         assertEquals("ACC-001 has 2 unassigned sample items", 2, results.size());
     }
 
-    @Ignore("Blocked by known ReferralDAOImpl bug (type mismatch on sampleItem.id)")
+    @Ignore("Blocked by known ReferralDAOImpl bug (type mismatch on sampleItem.id) - Issue #3660")
     @Test
     public void getSampleItemById_unassignedBloodItem_shouldReturnCorrectDTO() {
         SampleItemDTO dto = unassignedSampleItemService.getSampleItemById("1");
@@ -112,7 +121,7 @@ public class UnassignedSampleItemServiceTest extends BaseWebContextSensitiveTest
         assertEquals("HIV Viral Load", dto.getReferralTests().get(0).getTestName());
     }
 
-    @Ignore("Blocked by known ReferralDAOImpl bug (type mismatch on sampleItem.id)")
+    @Ignore("Blocked by known ReferralDAOImpl bug (type mismatch on sampleItem.id) - Issue #3660")
     @Test
     public void getSampleItemById_assignedSerumItem_shouldReturnDTOWithBoxDetails() {
         SampleItemDTO dto = unassignedSampleItemService.getSampleItemById("3");
