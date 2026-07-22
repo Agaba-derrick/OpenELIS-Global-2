@@ -1,9 +1,6 @@
 package org.openelisglobal.testmethod.service;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 import java.sql.Date;
 import java.util.List;
@@ -11,6 +8,8 @@ import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.common.util.IdValuePair;
+import org.openelisglobal.method.service.MethodService;
+import org.openelisglobal.method.valueholder.Method;
 import org.openelisglobal.testmethod.service.TestMethodService.InlineCreateData;
 import org.openelisglobal.testmethod.service.TestMethodService.TestMethodDto;
 import org.openelisglobal.testmethod.valueholder.TestMethod;
@@ -20,6 +19,9 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
 
     @Autowired
     private TestMethodService testMethodService;
+
+    @Autowired
+    private MethodService methodService;
 
     @Before
     public void init() throws Exception {
@@ -33,7 +35,7 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("1000", link.getId());
         assertEquals("10", link.getTestId());
         assertEquals("100", link.getMethodId());
-        assertTrue(link.getIsDefaultMethod());
+        assertEquals(true, link.getIsDefaultMethod());
         assertEquals("2025-01-01", link.getEffectiveDate().toString());
         assertEquals("Y", link.getIsActive());
     }
@@ -42,7 +44,7 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
     public void findLinkById_shouldReturnNullWhenLinkDoesNotExist() {
         TestMethod link = testMethodService.findLinkById("non-existent-link-id");
 
-        assertNull(link);
+        assertEquals(null, link);
     }
 
     @Test
@@ -50,22 +52,27 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         List<TestMethod> activeLinks = testMethodService.getActiveTestMethodsByTestId("10");
 
         assertEquals(2, activeLinks.size());
-        assertEquals("1000", activeLinks.get(0).getId());
-        assertEquals("100", activeLinks.get(0).getMethodId());
-        assertTrue(activeLinks.get(0).getIsDefaultMethod());
-        assertEquals("Y", activeLinks.get(0).getIsActive());
 
-        assertEquals("1001", activeLinks.get(1).getId());
-        assertEquals("200", activeLinks.get(1).getMethodId());
-        assertFalse(activeLinks.get(1).getIsDefaultMethod());
-        assertEquals("Y", activeLinks.get(1).getIsActive());
+        TestMethod link1000 = activeLinks.get(0);
+        assertEquals("1000", link1000.getId());
+        assertEquals("10", link1000.getTestId());
+        assertEquals("100", link1000.getMethodId());
+        assertEquals(true, link1000.getIsDefaultMethod());
+        assertEquals("Y", link1000.getIsActive());
+
+        TestMethod link1001 = activeLinks.get(1);
+        assertEquals("1001", link1001.getId());
+        assertEquals("10", link1001.getTestId());
+        assertEquals("200", link1001.getMethodId());
+        assertEquals(false, link1001.getIsDefaultMethod());
+        assertEquals("Y", link1001.getIsActive());
     }
 
     @Test
     public void testMethodLinkExists_shouldReturnTrueForExistingActiveLink() {
         boolean exists = testMethodService.testMethodLinkExists("10", "100");
 
-        assertTrue(exists);
+        assertEquals(true, exists);
     }
 
     @Test
@@ -73,8 +80,8 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         boolean nonExistent = testMethodService.testMethodLinkExists("10", "999");
         boolean inactive = testMethodService.testMethodLinkExists("10", "300");
 
-        assertFalse(nonExistent);
-        assertFalse(inactive);
+        assertEquals(false, nonExistent);
+        assertEquals(false, inactive);
     }
 
     @Test
@@ -91,15 +98,19 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
 
         assertEquals("10", savedLink.getTestId());
         assertEquals("300", savedLink.getMethodId());
-        assertTrue(savedLink.getIsDefaultMethod());
+        assertEquals(true, savedLink.getIsDefaultMethod());
         assertEquals("2025-03-01", savedLink.getEffectiveDate().toString());
         assertEquals("Y", savedLink.getIsActive());
 
-        // Verify pre-existing default (1000) was cleared to false
-        TestMethod oldDefault = testMethodService.findLinkById("1000");
-        assertFalse(oldDefault.getIsDefaultMethod());
+        TestMethod reloaded = testMethodService.findLinkById(savedLink.getId());
+        assertEquals("10", reloaded.getTestId());
+        assertEquals("300", reloaded.getMethodId());
+        assertEquals(true, reloaded.getIsDefaultMethod());
+        assertEquals("2025-03-01", reloaded.getEffectiveDate().toString());
 
-        // Verify 300 is now the new default method id
+        TestMethod oldDefault = testMethodService.findLinkById("1000");
+        assertEquals(false, oldDefault.getIsDefaultMethod());
+
         assertEquals("300", testMethodService.getDefaultMethodId("10"));
     }
 
@@ -112,12 +123,11 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         TestMethod updated = testMethodService.updateLink(linkToUpdate);
 
         assertEquals("1001", updated.getId());
-        assertTrue(updated.getIsDefaultMethod());
+        assertEquals(true, updated.getIsDefaultMethod());
         assertEquals("2025-06-01", updated.getEffectiveDate().toString());
 
-        // Verify old default (1000) is cleared
         TestMethod oldDefault = testMethodService.findLinkById("1000");
-        assertFalse(oldDefault.getIsDefaultMethod());
+        assertEquals(false, oldDefault.getIsDefaultMethod());
         assertEquals("200", testMethodService.getDefaultMethodId("10"));
     }
 
@@ -126,11 +136,13 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         testMethodService.removeLink("1000", "1");
 
         TestMethod deactivated = testMethodService.findLinkById("1000");
+        assertEquals("1000", deactivated.getId());
         assertEquals("N", deactivated.getIsActive());
 
         List<TestMethod> activeLinks = testMethodService.getActiveTestMethodsByTestId("10");
         assertEquals(1, activeLinks.size());
         assertEquals("1001", activeLinks.get(0).getId());
+        assertEquals("200", activeLinks.get(0).getMethodId());
     }
 
     @Test
@@ -139,7 +151,7 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("100", defaultMethodId);
 
         String nullDefault = testMethodService.getDefaultMethodId("999");
-        assertNull(nullDefault);
+        assertEquals(null, nullDefault);
     }
 
     @Test
@@ -158,7 +170,7 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
     public void getMethodDisplayListForTest_shouldReturnNullWhenNoActiveMethods() {
         List<IdValuePair> displayList = testMethodService.getMethodDisplayListForTest("999");
 
-        assertNull(displayList);
+        assertEquals(null, displayList);
     }
 
     @Test
@@ -171,14 +183,14 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("100", dtos.get(0).methodId);
         assertEquals("Microscopy", dtos.get(0).methodName);
         assertEquals("MIC", dtos.get(0).methodCode);
-        assertTrue(dtos.get(0).isDefault);
+        assertEquals(true, dtos.get(0).isDefault);
         assertEquals("2025-01-01", dtos.get(0).effectiveDate);
 
         assertEquals("1001", dtos.get(1).id);
         assertEquals("200", dtos.get(1).methodId);
         assertEquals("PCR", dtos.get(1).methodName);
         assertEquals("PCR", dtos.get(1).methodCode);
-        assertFalse(dtos.get(1).isDefault);
+        assertEquals(false, dtos.get(1).isDefault);
         assertEquals("2025-01-15", dtos.get(1).effectiveDate);
     }
 
@@ -197,8 +209,13 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("100", dto.methodId);
         assertEquals("Microscopy", dto.methodName);
         assertEquals("MIC", dto.methodCode);
-        assertFalse(dto.isDefault);
+        assertEquals(false, dto.isDefault);
         assertEquals("2025-02-15", dto.effectiveDate);
+
+        TestMethod persisted = testMethodService.findLinkById(dto.id);
+        assertEquals("20", persisted.getTestId());
+        assertEquals("100", persisted.getMethodId());
+        assertEquals(false, persisted.getIsDefaultMethod());
     }
 
     @Test
@@ -213,6 +230,9 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("PCR", dto.methodName);
         assertEquals("PCR", dto.methodCode);
         assertEquals("2025-05-01", dto.effectiveDate);
+
+        TestMethod reloaded = testMethodService.findLinkById("1001");
+        assertEquals("2025-05-01", reloaded.getEffectiveDate().toString());
     }
 
     @Test
@@ -229,8 +249,14 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
 
         assertEquals("ELISA Assay", dto.methodName);
         assertEquals("ELISA", dto.methodCode);
-        assertFalse(dto.isDefault);
+        assertEquals(false, dto.isDefault);
         assertEquals("2025-04-01", dto.effectiveDate);
+
+        // Verify Method entity created in database
+        Method createdMethod = methodService.findById(dto.methodId);
+        assertEquals("ELISA Assay", createdMethod.getMethodName());
+        assertEquals("ELISA", createdMethod.getCode());
+        assertEquals("Y", createdMethod.getIsActive());
 
         // Verify active methods for test 10 increased to 3
         List<TestMethod> activeLinks = testMethodService.getActiveTestMethodsByTestId("10");
@@ -249,15 +275,17 @@ public class TestMethodServiceTest extends BaseWebContextSensitiveTest {
         assertEquals(2, targetLinks.size());
 
         TestMethod existingLink = targetLinks.stream().filter(l -> "200".equals(l.getMethodId())).findFirst()
-                .orElse(null);
+                .orElseThrow(() -> new AssertionError("Expected link for method 200 not found"));
         TestMethod copiedLink = targetLinks.stream().filter(l -> "100".equals(l.getMethodId())).findFirst()
-                .orElse(null);
+                .orElseThrow(() -> new AssertionError("Expected copied link for method 100 not found"));
 
+        assertEquals("20", existingLink.getTestId());
         assertEquals("200", existingLink.getMethodId());
-        assertTrue(existingLink.getIsDefaultMethod());
+        assertEquals(true, existingLink.getIsDefaultMethod());
 
-        assertEquals("100", copiedLink.getMethodId());
         assertEquals("20", copiedLink.getTestId());
-        assertFalse(copiedLink.getIsDefaultMethod());
+        assertEquals("100", copiedLink.getMethodId());
+        assertEquals(false, copiedLink.getIsDefaultMethod());
+        assertEquals("Y", copiedLink.getIsActive());
     }
 }
