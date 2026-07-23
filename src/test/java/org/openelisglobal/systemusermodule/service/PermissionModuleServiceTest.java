@@ -1,6 +1,8 @@
 package org.openelisglobal.systemusermodule.service;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.util.List;
 import java.util.Set;
@@ -15,6 +17,7 @@ import org.openelisglobal.systemusermodule.valueholder.RoleModule;
 import org.openelisglobal.systemusermodule.valueholder.SystemUserModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
 
@@ -79,15 +82,15 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
     @Test
     public void doesUserHaveAnyModules_ShouldDelegateToRoleModuleService_WhenAgentIsRole() {
         setPermissionsAgent("Role");
-        assertEquals(true, permissionModuleService.doesUserHaveAnyModules(1001));
-        assertEquals(false, permissionModuleService.doesUserHaveAnyModules(9999));
+        assertTrue(permissionModuleService.doesUserHaveAnyModules(1001));
+        assertFalse(permissionModuleService.doesUserHaveAnyModules(9999));
     }
 
     @Test
     public void doesUserHaveAnyModules_ShouldDelegateToSystemUserModuleService_WhenAgentIsUser() {
         setPermissionsAgent("USER");
-        assertEquals(true, permissionModuleService.doesUserHaveAnyModules(1001));
-        assertEquals(false, permissionModuleService.doesUserHaveAnyModules(9999));
+        assertTrue(permissionModuleService.doesUserHaveAnyModules(1001));
+        assertFalse(permissionModuleService.doesUserHaveAnyModules(9999));
     }
 
     @Test
@@ -95,8 +98,8 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("Role");
         Set<String> permittedPages = permissionModuleService.getAllPermittedPagesFromAgentId(3001);
         assertEquals(2, permittedPages.size());
-        assertEquals(true, permittedPages.contains("Module 1"));
-        assertEquals(true, permittedPages.contains("Module 2"));
+        assertTrue(permittedPages.contains("Module 1"));
+        assertTrue(permittedPages.contains("Module 2"));
     }
 
     @Test
@@ -104,23 +107,23 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("USER");
         Set<String> permittedPages = permissionModuleService.getAllPermittedPagesFromAgentId(1002);
         assertEquals(1, permittedPages.size());
-        assertEquals(true, permittedPages.contains("Module 2"));
+        assertTrue(permittedPages.contains("Module 2"));
     }
 
     @Test
     public void getPageOfPermissionModules_ShouldDelegateToRoleModuleService_WhenAgentIsRole() {
         setPermissionsAgent("Role");
         List<PermissionModule> modules = permissionModuleService.getPageOfPermissionModules(1);
-        assertEquals(true, modules.size() > 0);
-        assertEquals(true, modules.stream().allMatch(m -> m instanceof RoleModule));
+        assertTrue(modules.size() > 0);
+        assertTrue(modules.stream().allMatch(m -> m instanceof RoleModule));
     }
 
     @Test
     public void getPageOfPermissionModules_ShouldDelegateToSystemUserModuleService_WhenAgentIsUser() {
         setPermissionsAgent("USER");
         List<PermissionModule> modules = permissionModuleService.getPageOfPermissionModules(1);
-        assertEquals(true, modules.size() > 0);
-        assertEquals(true, modules.stream().allMatch(m -> m instanceof SystemUserModule));
+        assertTrue(modules.size() > 0);
+        assertTrue(modules.stream().allMatch(m -> m instanceof SystemUserModule));
     }
 
     @Test
@@ -140,7 +143,7 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("Role");
         List<PermissionModule> modules = permissionModuleService.getAllPermissionModulesByAgentId(3001);
         assertEquals(2, modules.size());
-        assertEquals(true, modules.stream().allMatch(m -> "3001".equals(((RoleModule) m).getRole().getId())));
+        assertTrue(modules.stream().allMatch(m -> "3001".equals(((RoleModule) m).getRole().getId())));
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -158,8 +161,11 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void getData_ShouldDelegateToRoleModuleService_WhenAgentIsRole() {
+        // NOTE: @Transactional keeps the Hibernate session open so that accessing
+        // lazy properties like getSystemModule().getSystemModuleName() doesn't throw
+        // LazyInitializationException.
         setPermissionsAgent("Role");
         PermissionModule module = permissionModuleService.get("4001");
         permissionModuleService.getData(module);
@@ -167,8 +173,11 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
-    @org.springframework.transaction.annotation.Transactional
+    @Transactional
     public void getData_ShouldDelegateToSystemUserModuleService_WhenAgentIsUser() {
+        // NOTE: @Transactional keeps the Hibernate session open so that accessing
+        // lazy properties like getSystemModule().getSystemModuleName() doesn't throw
+        // LazyInitializationException.
         setPermissionsAgent("USER");
         PermissionModule module = permissionModuleService.get("2");
         permissionModuleService.getData(module);
