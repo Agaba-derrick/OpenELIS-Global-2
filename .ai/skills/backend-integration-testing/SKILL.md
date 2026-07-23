@@ -31,6 +31,9 @@ DBUnit, and the 5-layer architecture standards.
 4. **Follow the Gold Standard**: Use `MenuServiceTest.java` as the blueprint.
 5. **Verify with test target**: Run `mvn test -Dtest=<NewTest>` to verify the
    newly added or modified test specifically.
+6. **Harden assertions**: Avoid weak assertions like `assertNotNull` or
+   `assertNull`. Assert aggressively on exact values, specific sizes, and field
+   states to guarantee correct business logic outcomes.
 
 ## Reference
 

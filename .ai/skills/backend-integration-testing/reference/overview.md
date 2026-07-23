@@ -94,11 +94,13 @@ base class).
 ```java
 package org.openelisglobal.menu;
 
+import java.util.List;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.menu.service.MenuService;
+import org.openelisglobal.menu.valueholder.Menu;
 import org.springframework.beans.factory.annotation.Autowired;
 
 public class MenuServiceTest extends BaseWebContextSensitiveTest {
@@ -116,8 +118,11 @@ public class MenuServiceTest extends BaseWebContextSensitiveTest {
     public void getAllActiveMenus_shouldReturnOnlyActiveMenus() {
         List<Menu> activeMenus = menuService.getAllActiveMenus();
 
-        Assert.assertNotNull(activeMenus);
-        Assert.assertFalse(activeMenus.isEmpty());
+        // Avoid weak assertions like assertNotNull or assertFalse(isEmpty)
+        // Assert exact size and exact values to guarantee correct state
+        Assert.assertEquals(2, activeMenus.size());
+        Assert.assertEquals("Active Menu A", activeMenus.get(0).getName());
+        Assert.assertEquals("Active Menu B", activeMenus.get(1).getName());
         Assert.assertTrue(activeMenus.stream().allMatch(Menu::getIsActive));
     }
 }
@@ -125,15 +130,30 @@ public class MenuServiceTest extends BaseWebContextSensitiveTest {
 
 ### Step 2: Create the Dataset (XML)
 
-Datasets are stored in `src/test/resources/fixtures/` or
-`src/test/resources/testdata/`. Use DBUnit Flat XML format.
+DBUnit XML datasets are stored in `src/test/resources/testdata/` (note:
+`src/test/resources/fixtures/` holds raw SQL, not DBUnit XML). Use DBUnit Flat
+XML format with bare table names (do NOT prefix with `clinlims.`; the database
+schema prefix is handled automatically by the loader).
 
 ```xml
 <dataset>
-    <clinlims.organization id="1" name="Test Lab" ... />
-    <clinlims.system_user id="1" login_name="admin" ... />
+    <organization id="100" name="Test Lab" ... />
+    <system_user id="100" login_name="tester" ... />
 </dataset>
 ```
+
+#### Hardened Loader Invariants & Constraints:
+
+- **Never Declare `reference_tables`**: Do not declare `reference_tables` in
+  your dataset fixture (it is a protected seed table).
+- **System User ID 1**: The user `system_user` with `id=1` is a protected seed
+  and is automatically re-seeded after every load.
+- **Use IDs >= 100**: Always use IDs >= 100 for rows in tables that the
+  test/application might insert into, to prevent primary key/ID conflicts with
+  seed data.
+- **Sequence Resync**: When using explicit IDs in fixtures, use the
+  `resyncSequence(sequence, table)` helper to sync PostgreSQL sequences and
+  avoid duplicate key exceptions on subsequent inserts.
 
 ## 6. Running Tests
 
@@ -155,6 +175,9 @@ Datasets are stored in `src/test/resources/fixtures/` or
   Prefer real DAOs and Services for integration tests.
 - **No Hardcoded IDs**: Prefer using data loaded from fixtures and avoid relying
   on database-generated IDs that might change.
+- **Harden Assertions**: Avoid weak assertions (e.g. `assertNotNull`,
+  `assertNull`, or check-empty). Assert aggressively on specific values, exact
+  list sizes, and field states.
 
 ## 8. Debugging & Troubleshooting
 
@@ -168,10 +191,11 @@ these common issues:
   transaction.
   - **Fix**: Use `JOIN FETCH` in the DAO or ensure all data is eagerly loaded by
     the Service before it returns to the Controller/Test.
-- **`NoSuchTableException` (DBUnit)**: Occurs if the XML dataset doesn't use the
-  `clinlims.` schema prefix.
-  - **Fix**: Ensure all tags in your XML start with
-    `<clinlims.table_name ... />`.
+- **`NoSuchTableException` (DBUnit)**: Occurs if the XML dataset references a
+  table that does not exist in the database schema or is misspelled.
+  - **Fix**: Verify table spelling against the database schema or JPA Entity. Do
+    NOT use the `clinlims.` schema prefix, as the schema prefix is resolved
+    automatically by the DBUnit connection loader.
 - **`ConstraintViolationException`**: Often caused by stale data or foreign key
   issues.
   - **Fix**: Ensure `executeDataSetWithStateManagement` is called in the
@@ -198,7 +222,22 @@ If the database fails to start:
 
 If the schema fails to apply:
 
-- Check `src/test/resources/liquibase/base-changelog.xml` for syntax errors or
-  missing changesets.
+- Check `src/main/resources/liquibase/base-changelog.xml` (loaded onto the test
+  classpath via `BaseTestConfig`) for syntax errors or missing changesets.
 - Note: The test database is ephemeral; sometimes a manual `mvn clean` is needed
   to reset the local Testcontainers state.
+
+## 9. Enforcing Aggressive Assertions
+
+When writing or reviewing backend integration tests, developers and agents MUST
+NOT use weak assertions that only verify nullness or emptiness. These weak
+checks often pass when incorrect or incomplete data is returned.
+
+### Comparison of Assertion Styles
+
+| Weak/Prohibited Assertion             | Aggressive/Mandatory Assertion                           | Why?                                                                                 |
+| :------------------------------------ | :------------------------------------------------------- | :----------------------------------------------------------------------------------- |
+| `assertNotNull(list);`                | `assertEquals(2, list.size());`                          | Nullness or emptiness checks pass on incorrect lists containing arbitrary elements.  |
+| `assertFalse(list.isEmpty());`        | `assertEquals("expectedValue", list.get(0).getValue());` | Ensuring the exact values are mapped prevents silent data truncation/leaks.          |
+| `assertNotNull(savedEntity.getId());` | `assertEquals("custom-id-99", savedEntity.getName());`   | Having an ID generated doesn't guarantee properties were correctly persisted/mapped. |
+| `assertTrue(result);`                 | `assertEquals(ExpectedEnum.STATUS, entity.getStatus());` | Asserting specific state enums/values validates business logic correctness.          |

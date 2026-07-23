@@ -33,6 +33,9 @@ public class ${ServiceName}IntegrationTest extends BaseWebContextSensitiveTest {
         // Act
 
         // Assert
-        // Assert.assertNotNull(...);
+        // Do NOT use weak assertions like assertNotNull or assertNull.
+        // Assert specifically on exact sizes, specific fields, and expected states:
+        // Assert.assertEquals(1, results.size());
+        // Assert.assertEquals("expectedValue", results.get(0).getSomeField());
     }
 }
