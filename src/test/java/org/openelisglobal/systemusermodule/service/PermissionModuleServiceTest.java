@@ -46,7 +46,9 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         List<PermissionModule> modules = permissionModuleService.getAllPermissionModules();
         assertEquals(3, modules.size());
 
-        RoleModule first = (RoleModule) modules.get(0);
+        RoleModule first = (RoleModule) modules.stream().filter(m -> "2001".equals(m.getSystemModule().getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Expected RoleModule for system module 2001 not found"));
         assertEquals(RoleModule.class, first.getClass());
         assertEquals("2001", first.getSystemModule().getId());
         assertEquals("Y", first.getHasSelect());
@@ -62,7 +64,9 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         List<PermissionModule> modules = permissionModuleService.getAllPermissionModules();
         assertEquals(3, modules.size());
 
-        SystemUserModule first = (SystemUserModule) modules.get(0);
+        SystemUserModule first = (SystemUserModule) modules.stream()
+                .filter(m -> "2001".equals(m.getSystemModule().getId())).findFirst()
+                .orElseThrow(() -> new AssertionError("Expected SystemUserModule for system module 2001 not found"));
         assertEquals(SystemUserModule.class, first.getClass());
         assertEquals("2001", first.getSystemModule().getId());
         assertEquals("Y", first.getHasSelect());
@@ -108,7 +112,7 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("Role");
         List<PermissionModule> modules = permissionModuleService.getPageOfPermissionModules(1);
         assertEquals(true, modules.size() > 0);
-        assertEquals(RoleModule.class, modules.get(0).getClass());
+        assertEquals(true, modules.stream().allMatch(m -> m instanceof RoleModule));
     }
 
     @Test
@@ -116,7 +120,7 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("USER");
         List<PermissionModule> modules = permissionModuleService.getPageOfPermissionModules(1);
         assertEquals(true, modules.size() > 0);
-        assertEquals(SystemUserModule.class, modules.get(0).getClass());
+        assertEquals(true, modules.stream().allMatch(m -> m instanceof SystemUserModule));
     }
 
     @Test
@@ -136,12 +140,19 @@ public class PermissionModuleServiceTest extends BaseWebContextSensitiveTest {
         setPermissionsAgent("Role");
         List<PermissionModule> modules = permissionModuleService.getAllPermissionModulesByAgentId(3001);
         assertEquals(2, modules.size());
-        assertEquals("3001", ((RoleModule) modules.get(0)).getRole().getId());
-        assertEquals("3001", ((RoleModule) modules.get(1)).getRole().getId());
+        assertEquals(true, modules.stream().allMatch(m -> "3001".equals(((RoleModule) m).getRole().getId())));
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void getAllPermissionModulesByAgentId_ShouldDelegateToSystemUserModuleService_WhenAgentIsUser() {
+    public void getAllPermissionModulesByAgentId_currentlyThrowsBecausePropertyIsHardcodedToRoleId() {
+        // NOTE: This test documents a known defect in
+        // PermissionModuleServiceImpl.getAllPermissionModulesByAgentId.
+        // The implementation delegates to
+        // getActivePermissionModule().getAllMatching("role.id", agentId)
+        // which is hardcoded to "role.id". For USER configuration (SystemUserModule),
+        // there is no
+        // "role" property (the field is "systemUser"), so Hibernate throws an
+        // IllegalArgumentException.
         setPermissionsAgent("USER");
         permissionModuleService.getAllPermissionModulesByAgentId(1003);
     }
