@@ -42,6 +42,8 @@ public class GenericSampleOrderServiceTest extends BaseWebContextSensitiveTest {
     @Before
     public void setUp() throws Exception {
         executeDataSetWithStateManagement("testdata/test-generic-sample-order.xml");
+        resyncSequence("clinlims.sample_seq", "clinlims.sample");
+        resyncSequence("clinlims.sample_item_seq", "clinlims.sample_item");
 
         AtomicInteger counter = new AtomicInteger(1);
         String twoDigitYear = String.valueOf(java.time.Year.now().getValue() % 100);
