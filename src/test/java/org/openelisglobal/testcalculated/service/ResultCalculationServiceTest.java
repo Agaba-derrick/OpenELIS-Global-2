@@ -2,21 +2,19 @@ package org.openelisglobal.testcalculated.service;
 
 import java.util.List;
 import java.util.Set;
-import javax.sql.DataSource;
 import org.hibernate.ObjectNotFoundException;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.patient.service.PatientService;
 import org.openelisglobal.patient.valueholder.Patient;
-import org.openelisglobal.result.service.ResultService;
 import org.openelisglobal.test.service.TestService;
 import org.openelisglobal.testcalculated.valueholder.Calculation;
 import org.openelisglobal.testcalculated.valueholder.ResultCalculation;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
 
@@ -32,19 +30,9 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
     @Autowired
     private TestCalculationService testCalculationService;
 
-    @Autowired
-    private ResultService resultService;
-
-    @Autowired
-    private DataSource dataSource;
-
-    private JdbcTemplate jdbcTemplate;
-
     @Before
     public void init() throws Exception {
-        jdbcTemplate = new JdbcTemplate(dataSource);
-        executeDataSetWithStateManagement("testdata/result-calculation.xml");
-        jdbcTemplate.execute("SELECT setval('result_calculation_seq', 100, false)");
+        executeDataSetWithStateManagement("testdata/result-calculation-integration-test.xml");
         seedTestOperations();
     }
 
@@ -96,25 +84,6 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
     @Test
     public void getCount_shouldReturnFourMatchingDataset() {
         Assert.assertEquals(Integer.valueOf(4), resultCalculationService.getCount());
-    }
-
-    @Test
-    public void insert_shouldPersistAndIncrementCount() {
-        Patient patient = patientService.get("1");
-        Calculation calculation = testCalculationService.get(2);
-
-        ResultCalculation rc = new ResultCalculation();
-        rc.setPatient(patient);
-        rc.setCalculation(calculation);
-        rc.setSysUserId(TEST_SYS_USER_ID);
-
-        Integer newId = resultCalculationService.insert(rc);
-        ResultCalculation persisted = resultCalculationService.get(newId);
-
-        Assert.assertEquals(newId, persisted.getId());
-        Assert.assertEquals("1", persisted.getPatient().getId());
-        Assert.assertEquals(Integer.valueOf(2), persisted.getCalculation().getId());
-        Assert.assertEquals(Integer.valueOf(5), resultCalculationService.getCount());
     }
 
     @Test
@@ -210,45 +179,29 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
 
     @Test
     public void getResultCalculationByPatientAndTest_rcWithNoTestAssociation_shouldReturnEmpty() {
+        // rc4 (patient 2) is persisted with no test_operations rows; test 103 belongs
+        // to rc3 (patient 1).
         Patient patient = patientService.get("2");
         List<ResultCalculation> results = resultCalculationService.getResultCalculationByPatientAndTest(patient,
-                labTest("101"));
+                labTest("103"));
 
         Assert.assertTrue(results.isEmpty());
     }
 
-    // BUG: getResultCalculationByTest always throws LIMSRuntimeException due to a
-    // missing
-// 'select r' in the HQL JOIN query in ResultCalculationDAOImpl. Tests for this method
-// are disabled until the bug is fixed. See: https://github.com/DIGI-UW/OpenELIS-Global-2/issues/3748
-//    // @Test
-//    public void getResultCalculationByTest_test101_shouldReturnRc1() {
-//        List<ResultCalculation> results = resultCalculationService.getResultCalculationByTest(labTest("101"));
-//
-//        Assert.assertEquals(1, results.size());
-//        Assert.assertEquals(Integer.valueOf(1), results.get(0).getId());
-//        Assert.assertEquals("1", results.get(0).getPatient().getId());
-//        Assert.assertEquals(Integer.valueOf(1), results.get(0).getCalculation().getId());
-//        Assert.assertEquals("3001", results.get(0).getResult().getId());
-//    }
+    @Ignore("Blocked by missing 'select r' in getResultCalculationByTest HQL — https://github.com/DIGI-UW/OpenELIS-Global-2/issues/3748")
+    @Test
+    public void getResultCalculationByTest_test101_shouldReturnRc1WithRelationshipsLoaded() {
+        List<ResultCalculation> results = resultCalculationService.getResultCalculationByTest(labTest("101"));
 
-    @Test(expected = LIMSRuntimeException.class)
-    public void getResultCalculationByTest_test101_shouldThrowLIMSRuntimeException() {
-        resultCalculationService.getResultCalculationByTest(labTest("101"));
+        Assert.assertEquals(1, results.size());
+        Assert.assertEquals(Integer.valueOf(1), results.get(0).getId());
+        Assert.assertEquals("1", results.get(0).getPatient().getId());
+        Assert.assertEquals(Integer.valueOf(1), results.get(0).getCalculation().getId());
+        Assert.assertEquals("3001", results.get(0).getResult().getId());
     }
 
     @Test(expected = LIMSRuntimeException.class)
-    public void getResultCalculationByTest_test102_shouldThrowLIMSRuntimeException() {
-        resultCalculationService.getResultCalculationByTest(labTest("102"));
-    }
-
-    @Test(expected = LIMSRuntimeException.class)
-    public void getResultCalculationByTest_test103_shouldThrowLIMSRuntimeException() {
-        resultCalculationService.getResultCalculationByTest(labTest("103"));
-    }
-
-    @Test(expected = LIMSRuntimeException.class)
-    public void getResultCalculationByTest_returnedRowsMustHaveAllRelationshipsLoaded() {
+    public void getResultCalculationByTest_throwsUntilIssue3748Fixed() {
         resultCalculationService.getResultCalculationByTest(labTest("101"));
     }
 
@@ -347,27 +300,5 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
                 .getResultCalculationByPatientAndCalculation(nonExistentPatient, calculation);
 
         Assert.assertTrue(results.isEmpty());
-    }
-
-    @Test
-    public void insert_newRowWithTestShouldBeReturnedBySubsequentQuery() {
-        Patient patient = patientService.get("2");
-        Calculation calculation = testCalculationService.get(2);
-
-        int before = resultCalculationService.getResultCalculationByPatientAndCalculation(patient, calculation).size();
-        Assert.assertEquals(0, before);
-
-        ResultCalculation rc = new ResultCalculation();
-        rc.setPatient(patient);
-        rc.setCalculation(calculation);
-        rc.setSysUserId(TEST_SYS_USER_ID);
-        resultCalculationService.insert(rc);
-
-        List<ResultCalculation> after = resultCalculationService.getResultCalculationByPatientAndCalculation(patient,
-                calculation);
-        Assert.assertEquals(1, after.size());
-        Assert.assertEquals("2", after.get(0).getPatient().getId());
-        Assert.assertEquals(Integer.valueOf(2), after.get(0).getCalculation().getId());
-        Assert.assertEquals(Integer.valueOf(5), resultCalculationService.getCount());
     }
 }

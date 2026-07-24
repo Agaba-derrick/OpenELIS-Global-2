@@ -1,5 +1,7 @@
 <?xml version='1.0' encoding='UTF-8'?>
 <dataset>
+    <!-- ResultCalculationServiceTest fixture. TestCalculationServiceTest uses
+        testdata/result-calculation-service.xml (develop / PR #3886). -->
 
     <!-- ===== PERSONS ===== -->
     <person id="1" last_name="Alpha" first_name="Alice"
