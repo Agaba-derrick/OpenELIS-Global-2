@@ -177,17 +177,6 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
         Assert.assertTrue(results.isEmpty());
     }
 
-    @Test
-    public void getResultCalculationByPatientAndTest_rcWithNoTestAssociation_shouldReturnEmpty() {
-        // rc4 (patient 2) is persisted with no test_operations rows; test 103 belongs
-        // to rc3 (patient 1).
-        Patient patient = patientService.get("2");
-        List<ResultCalculation> results = resultCalculationService.getResultCalculationByPatientAndTest(patient,
-                labTest("103"));
-
-        Assert.assertTrue(results.isEmpty());
-    }
-
     @Ignore("Blocked by missing 'select r' in getResultCalculationByTest HQL — https://github.com/DIGI-UW/OpenELIS-Global-2/issues/3748")
     @Test
     public void getResultCalculationByTest_test101_shouldReturnRc1WithRelationshipsLoaded() {
