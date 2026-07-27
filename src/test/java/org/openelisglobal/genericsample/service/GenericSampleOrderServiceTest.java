@@ -3,15 +3,22 @@ package org.openelisglobal.genericsample.service;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
+import org.openelisglobal.common.provider.validation.IAccessionNumberGenerator;
 import org.openelisglobal.genericsample.form.GenericSampleImportResult;
 import org.openelisglobal.genericsample.form.GenericSampleOrderForm;
 import org.openelisglobal.sample.service.SampleService;
@@ -19,6 +26,7 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.ReflectionTestUtils;
 
 public class GenericSampleOrderServiceTest extends BaseWebContextSensitiveTest {
 
@@ -34,6 +42,20 @@ public class GenericSampleOrderServiceTest extends BaseWebContextSensitiveTest {
     @Before
     public void setUp() throws Exception {
         executeDataSetWithStateManagement("testdata/test-generic-sample-order.xml");
+
+        AtomicInteger counter = new AtomicInteger(1);
+        String twoDigitYear = String.valueOf(java.time.Year.now().getValue() % 100);
+        IAccessionNumberGenerator generator = mock(IAccessionNumberGenerator.class);
+        when(generator.getNextAccessionNumber(any(), anyBoolean()))
+                .thenAnswer(inv -> twoDigitYear + String.format("%06d", counter.getAndIncrement()));
+        when(generator.getNextAvailableAccessionNumber(any(), anyBoolean()))
+                .thenAnswer(inv -> twoDigitYear + String.format("%06d", counter.getAndIncrement()));
+        ReflectionTestUtils.setField(genericSampleOrderService, "accessionNumberGenerator", generator);
+    }
+
+    @After
+    public void tearDown() {
+        ReflectionTestUtils.setField(genericSampleOrderService, "accessionNumberGenerator", null);
     }
 
     @Test
