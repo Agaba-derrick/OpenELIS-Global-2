@@ -363,7 +363,7 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
                 .thenReturn(bundle);
 
         fhirTransformService.transformPersistPatient(patientInfo, true);
-        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+        Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
                 .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
     }
 
@@ -376,7 +376,7 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
                 .thenReturn(bundle);
 
         fhirTransformService.transformPersistOrganization(org);
-        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+        Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
                 .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
     }
 
@@ -395,7 +395,7 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
                 .thenReturn(bundle);
 
         fhirTransformService.transformPersistOrderEntryFhirObjects(updateData, patientInfo, false, new ArrayList<>());
-        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+        Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
                 .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
     }
 
@@ -409,7 +409,7 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
                 .thenReturn(bundle);
 
         fhirTransformService.transformPersistResultsEntryFhirObjects(actionDataSet);
-        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+        Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
                 .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
     }
 
@@ -429,7 +429,7 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
 
         fhirTransformService.transformPersistResultValidationFhirObjects(deletableList, analysisUpdateList,
                 resultUpdateList, resultItemList, sampleUpdateList, noteUpdateList);
-        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+        Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
                 .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
     }
 
