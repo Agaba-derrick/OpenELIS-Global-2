@@ -450,6 +450,20 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         FhirOperations captured = opsCaptor.getValue();
         int totalResources = captured.createResources.size() + captured.updateResources.size();
         assertTrue("Expected some resources to be prepared for persistence", totalResources > 0);
+        boolean hasSpecimen = captured.createResources.values().stream().anyMatch(r -> r instanceof Specimen)
+                || captured.updateResources.values().stream().anyMatch(r -> r instanceof Specimen);
+        assertTrue("Expected at least one Specimen to be prepared for sample persistence", hasSpecimen);
+        boolean hasExpectedSpecimenId = captured.createResources.values().stream().filter(r -> r instanceof Specimen)
+                .map(r -> r.getId()).anyMatch("68438220-5cef-44c4-9e6f-9f88e6b93270"::equals)
+                || captured.updateResources.values().stream().filter(r -> r instanceof Specimen).map(r -> r.getId())
+                        .anyMatch("68438220-5cef-44c4-9e6f-9f88e6b93270"::equals);
+        assertTrue("Expected specimen with the fixture ID to be prepared for persistence", hasExpectedSpecimenId);
+        boolean hasExpectedPatientId = captured.createResources.values().stream()
+                .filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).map(r -> r.getId())
+                .anyMatch("550e8400-e29b-41d4-a716-446655440001"::equals)
+                || captured.updateResources.values().stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Patient)
+                        .map(r -> r.getId()).anyMatch("550e8400-e29b-41d4-a716-446655440001"::equals);
+        assertTrue("Expected patient with the fixture ID to be prepared for persistence", hasExpectedPatientId);
     }
 
     @Test
@@ -468,6 +482,16 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         FhirOperations captured = opsCaptor.getValue();
         int totalResources = captured.createResources.size() + captured.updateResources.size();
         assertTrue("Expected some resources to be prepared for persistence", totalResources > 0);
+        boolean hasPatient = captured.createResources.values().stream()
+                .anyMatch(r -> r instanceof org.hl7.fhir.r4.model.Patient)
+                || captured.updateResources.values().stream().anyMatch(r -> r instanceof org.hl7.fhir.r4.model.Patient);
+        assertTrue("Expected at least one Patient to be prepared for patient persistence", hasPatient);
+        boolean hasExpectedPatientId = captured.createResources.values().stream()
+                .filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).map(r -> r.getId())
+                .anyMatch("550e8400-e29b-41d4-a716-446655440001"::equals)
+                || captured.updateResources.values().stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Patient)
+                        .map(r -> r.getId()).anyMatch("550e8400-e29b-41d4-a716-446655440001"::equals);
+        assertTrue("Expected patient with the fixture ID to be prepared for persistence", hasExpectedPatientId);
     }
 
     @Test
