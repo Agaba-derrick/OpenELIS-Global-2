@@ -7,7 +7,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,8 +27,10 @@ import org.hl7.fhir.r4.model.ResourceType;
 import org.hl7.fhir.r4.model.ServiceRequest;
 import org.hl7.fhir.r4.model.Specimen;
 import org.hl7.fhir.r4.model.StringType;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.openelisglobal.BaseWebContextSensitiveTest;
 import org.openelisglobal.analysis.service.AnalysisService;
@@ -53,9 +54,9 @@ import org.openelisglobal.sample.valueholder.Sample;
 import org.openelisglobal.sampleitem.service.SampleItemService;
 import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.test.beanItems.TestResultItem;
-import org.springframework.aop.framework.Advised;
-import org.springframework.aop.support.AopUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.AopTestUtils;
+import org.springframework.test.util.ReflectionTestUtils;
 
 public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
 
@@ -75,21 +76,26 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
     private OrganizationService organizationService;
 
     private FhirPersistanceService mockFhirPersistanceService;
+    private Object originalFhirPersistanceService;
+    private Object fhirTransformServiceTarget;
 
     @Before
     public void setUp() throws Exception {
         executeDataSetWithStateManagement("testdata/result-facade.xml");
 
         mockFhirPersistanceService = mock(FhirPersistanceService.class);
+        fhirTransformServiceTarget = AopTestUtils.getTargetObject(fhirTransformService);
+        originalFhirPersistanceService = ReflectionTestUtils.getField(fhirTransformServiceTarget,
+                "fhirPersistanceService");
+        ReflectionTestUtils.setField(fhirTransformServiceTarget, "fhirPersistanceService", mockFhirPersistanceService);
+    }
 
-        Object target = fhirTransformService;
-        if (AopUtils.isAopProxy(target) && target instanceof Advised) {
-            target = ((Advised) target).getTargetSource().getTarget();
+    @After
+    public void tearDown() throws Exception {
+        if (fhirTransformServiceTarget != null) {
+            ReflectionTestUtils.setField(fhirTransformServiceTarget, "fhirPersistanceService",
+                    originalFhirPersistanceService);
         }
-
-        Field field = FhirTransformServiceImpl.class.getDeclaredField("fhirPersistanceService");
-        field.setAccessible(true);
-        field.set(target, mockFhirPersistanceService);
     }
 
     @Test
@@ -436,8 +442,14 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         Future<Bundle> future = fhirTransformService.transformPersistObjectsUnderSamples(sampleIds);
         assertEquals(bundle, future.get());
+        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+        FhirOperations captured = opsCaptor.getValue();
+        int totalResources = captured.createResources.size() + captured.updateResources.size();
+        assertTrue("Expected some resources to be prepared for persistence", totalResources > 0);
     }
 
     @Test
@@ -448,8 +460,14 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         Future<Bundle> future = fhirTransformService.transformPersistPatients(patientIds);
         assertEquals(bundle, future.get());
+        Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+        FhirOperations captured = opsCaptor.getValue();
+        int totalResources = captured.createResources.size() + captured.updateResources.size();
+        assertTrue("Expected some resources to be prepared for persistence", totalResources > 0);
     }
 
     @Test
