@@ -28,9 +28,10 @@ import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Transactional;
 
-@Transactional
+// Keep the class-level transaction so service-side updates are visible to the
+// test while the rollback still prevents fixture pollution from leaking across
+// cases.
 public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
     @Autowired
@@ -213,6 +214,50 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
+    public void addTests_keepsAlreadyActiveSectionAndPanelAndReordersSortedTests() throws Exception {
+        TestSection section = testSectionService.get(SECTION_ID);
+        section.setIsActive("Y");
+        section.setSysUserId(TEST_SYS_USER_ID);
+        testSectionService.update(section);
+
+        Panel panel = panelService.getPanelById("1");
+        panel.setIsActive("Y");
+        panel.setSysUserId(TEST_SYS_USER_ID);
+        panelService.update(panel);
+
+        org.openelisglobal.test.valueholder.Test orderedTest = buildTest("Ordered Preexisting Test", "1234-5",
+                "guid-ordered-001", section);
+        orderedTest.setIsActive("Y");
+        orderedTest.setOrderable(true);
+        orderedTest.setIsReportable("N");
+        orderedTest.setSortOrder("99");
+        testService.insert(orderedTest);
+
+        TypeOfSample sampleType = typeOfSampleService.get(SAMPLE_TYPE_ID);
+        org.openelisglobal.test.valueholder.Test newTest = buildTest("No-Flip Test", "9876-5", "guid-no-flip-001",
+                section);
+        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        orderedTest.setSortOrder("0");
+        testSet.sortedTests.add(orderedTest);
+
+        PanelItem panelItem = new PanelItem();
+        panelItem.setPanel(panel);
+        testSet.panelItems.add(panelItem);
+
+        testAddService.addTests(List.of(testSet), nameLocalization("No-Flip Test", "Test No-Flip"),
+                reportingLocalization("No-Flip Report", "Rapport No-Flip"), TEST_SYS_USER_ID);
+
+        TestSection reloadedSection = testSectionService.get(SECTION_ID);
+        assertEquals("Section should remain ACTIVE when already active", "Y", reloadedSection.getIsActive());
+
+        Panel reloadedPanel = panelService.getPanelById("1");
+        assertEquals("Panel should remain ACTIVE when already active", "Y", reloadedPanel.getIsActive());
+
+        org.openelisglobal.test.valueholder.Test reloadedOrderedTest = testService.get(orderedTest.getId());
+        assertEquals("Sorted test sort order should be updated by addTests", "0", reloadedOrderedTest.getSortOrder());
+    }
+
+    @Test
     public void addTests_multipleTestSets_eachPersistsAsIndependentTestWithSharedLocalizations() throws Exception {
         TypeOfSample sampleType = typeOfSampleService.get(SAMPLE_TYPE_ID);
         TestSection section = testSectionService.get(SECTION_ID);
@@ -244,7 +289,8 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
         assertEquals("Test Beta description must match", "Multi Test Beta(whole blood)", inserted2.getDescription());
         assertEquals("Test Alpha LOINC must be 88881-1", "88881-1", inserted1.getLoinc());
         assertEquals("Test Beta LOINC must be 88882-2", "88882-2", inserted2.getLoinc());
-        assertEquals("Both tests must be ACTIVE", inserted1.getIsActive(), inserted2.getIsActive());
+        assertEquals("Test Alpha must be ACTIVE", "Y", inserted1.getIsActive());
+        assertEquals("Test Beta must be ACTIVE", "Y", inserted2.getIsActive());
 
         assertEquals("Both tests must share the same name localization id", inserted1.getLocalizedTestName().getId(),
                 inserted2.getLocalizedTestName().getId());
