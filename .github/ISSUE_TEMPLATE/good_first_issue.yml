@@ -21,15 +21,6 @@ body:
         * Straightforward updates to existing code or docs
         * Simple refactors or clarity improvements
 
-  - type: input
-    id: title
-    attributes:
-      label: Title
-      description: A clear and descriptive title for the issue.
-      placeholder: "e.g., Fix typo in README.md line 42"
-    validations:
-      required: true
-
   - type: dropdown
     id: area
     attributes:
@@ -95,13 +86,12 @@ body:
 
         ### 📋 Step-by-Step Contribution Guide
         To help your first contribution go as smoothly as possible, we recommend following these steps:
-        - [ ] Comment `/assign` to request the issue
-        - [ ] Wait for assignment
+        - [ ] Comment on the issue to indicate interest, and a maintainer will help with assignment
         - [ ] Fork the repository and create a branch from `develop`
         - [ ] Set up the project by following the instructions in `README.md`
         - [ ] Make the requested changes
         - [ ] Formatter verification: run `mvn spotless:apply` for Java or `npm run format` for React
-        - [ ] Sign each commit using `-s -S` (commits MUST be signed to be merged)
+        - [ ] Follow the repository contribution guidance and prepare a clean pull request for review
         - [ ] Push your branch and open a pull request
 
         *Read [CONTRIBUTING.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/CONTRIBUTING.md) for contribution guidance.*

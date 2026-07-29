@@ -9,15 +9,6 @@ body:
         Please search existing issues before proposing a new feature.
         For general design discussions or proposals, check our [Talk Forum](https://talk.openelis-global.org/).
 
-  - type: input
-    id: title
-    attributes:
-      label: Title
-      description: A brief, descriptive title for the feature request.
-      placeholder: "e.g., Add ability to export test results to CSV"
-    validations:
-      required: true
-
   - type: dropdown
     id: area
     attributes:

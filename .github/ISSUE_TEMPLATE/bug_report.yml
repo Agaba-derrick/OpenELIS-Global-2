@@ -9,15 +9,6 @@ body:
         Please search existing issues before opening a new one to avoid duplicates.
         For general questions, please use our [Talk Forum](https://talk.openelis-global.org/).
 
-  - type: input
-    id: title
-    attributes:
-      label: Title
-      description: A brief, descriptive title for the bug.
-      placeholder: "e.g., Patient Search button is unresponsive when scanning barcode"
-    validations:
-      required: true
-
   - type: dropdown
     id: area
     attributes:
@@ -94,7 +85,7 @@ body:
     attributes:
       label: Checklist
       options:
-        - label: I have verified this bug exists on the latest development/main branch.
+        - label: I have verified this bug exists on the latest develop branch.
           required: true
         - label: I have searched for existing issues to avoid duplicates.
           required: true

@@ -16,15 +16,6 @@ body:
         * Are comfortable working with React/Carbon UI elements and hooks/SWR.
         * Can write and run integration/unit/E2E tests (JUnit, Playwright) independently.
 
-  - type: input
-    id: title
-    attributes:
-      label: Title
-      description: A clear and descriptive title for the issue.
-      placeholder: "e.g., Integrate new validation endpoint for address form"
-    validations:
-      required: true
-
   - type: dropdown
     id: area
     attributes:
@@ -83,10 +74,10 @@ body:
 
         ### 📋 Step-by-Step Contribution Guide
         To help keep contributions consistent and easy to review, remember these key steps:
-        - [ ] Comment `/assign` to request the issue and get assigned
+        - [ ] Comment on the issue to indicate interest, and a maintainer will help with assignment
         - [ ] Fork the repository and create a branch from `develop`
         - [ ] Make the requested changes following Spotless (Java) or Prettier (React) guidelines
-        - [ ] Sign each commit using `-s -S` (mandatory)
+        - [ ] Follow the repository contribution guidance and prepare a clean pull request for review
         - [ ] Push your branch and open a pull request
 
         *Read [CONTRIBUTING.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/CONTRIBUTING.md) for contribution guidance.*

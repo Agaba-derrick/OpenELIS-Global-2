@@ -24,15 +24,6 @@ body:
         * Straightforward updates to existing code or docs
         * Simple refactors, test additions, or clarity improvements
 
-  - type: input
-    id: title
-    attributes:
-      label: Title
-      description: A clear and descriptive title for the issue.
-      placeholder: "e.g., Fix typo in README.md line 42"
-    validations:
-      required: true
-
   - type: dropdown
     id: area
     attributes:
