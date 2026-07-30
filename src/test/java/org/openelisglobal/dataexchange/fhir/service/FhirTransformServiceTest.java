@@ -362,9 +362,24 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformPersistPatient(patientInfo, true);
         Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+
+        FhirOperations captured = opsCaptor.getValue();
+        int totalResources = captured.createResources.size() + captured.updateResources.size();
+        assertTrue("Expected some resources to be prepared for persistence", totalResources > 0);
+
+        org.hl7.fhir.r4.model.Patient fhirPatient = (org.hl7.fhir.r4.model.Patient) captured.createResources.values()
+                .stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).findFirst()
+                .orElse((org.hl7.fhir.r4.model.Patient) captured.updateResources.values().stream()
+                        .filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).findFirst().orElse(null));
+
+        assertTrue("Expected patient to be prepared for persistence", fhirPatient != null);
+        assertEquals("550e8400-e29b-41d4-a716-446655440001", fhirPatient.getId());
+        assertEquals("Doe", fhirPatient.getName().get(0).getFamily());
+        assertEquals("John", fhirPatient.getName().get(0).getGivenAsSingleString());
     }
 
     @Test
@@ -375,9 +390,24 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformPersistOrganization(org);
         Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+
+        FhirOperations captured = opsCaptor.getValue();
+        assertTrue("Expected some resources to be prepared for persistence",
+                captured.createResources.size() + captured.updateResources.size() > 0);
+
+        org.hl7.fhir.r4.model.Organization fhirOrg = (org.hl7.fhir.r4.model.Organization) captured.createResources
+                .values().stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Organization).findFirst()
+                .orElse((org.hl7.fhir.r4.model.Organization) captured.updateResources.values().stream()
+                        .filter(r -> r instanceof org.hl7.fhir.r4.model.Organization).findFirst().orElse(null));
+
+        assertTrue("Expected an Organization resource to be prepared", fhirOrg != null);
+        assertEquals("68438220-5cef-44c4-9e6f-9f88e6b93287", fhirOrg.getId());
+        assertEquals("Global Health Org", fhirOrg.getName());
+        assertEquals("123 Health St", fhirOrg.getAddress().get(0).getLine().get(0).getValue());
     }
 
     @Test
@@ -394,23 +424,59 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformPersistOrderEntryFhirObjects(updateData, patientInfo, false, new ArrayList<>());
         Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+
+        FhirOperations captured = opsCaptor.getValue();
+        assertTrue("Expected resources to be prepared",
+                captured.createResources.size() + captured.updateResources.size() > 0);
+
+        org.hl7.fhir.r4.model.Patient fhirPatient = (org.hl7.fhir.r4.model.Patient) captured.createResources.values()
+                .stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).findFirst()
+                .orElse((org.hl7.fhir.r4.model.Patient) captured.updateResources.values().stream()
+                        .filter(r -> r instanceof org.hl7.fhir.r4.model.Patient).findFirst().orElse(null));
+
+        assertTrue("Expected patient in order entry persistence", fhirPatient != null);
+        assertEquals("550e8400-e29b-41d4-a716-446655440001", fhirPatient.getId());
+        assertEquals("Doe", fhirPatient.getName().get(0).getFamily());
     }
 
     @Test
     public void transformPersistResultsEntryFhirObjects_shouldPersistFhirResources_whenActionDataSetProvided()
             throws Exception {
-        ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet("1");
+        ResultsUpdateDataSet actionDataSet = new ResultsUpdateDataSet("DEV01260000000000001");
+
+        Result result = new Result();
+        result.setId("4");
+        Analysis analysis = new Analysis();
+        analysis.setId("2");
+        result.setAnalysis(analysis);
+        org.openelisglobal.result.action.util.ResultSet rs = new org.openelisglobal.result.action.util.ResultSet(result,
+                null, null, null, null, null, false);
+        actionDataSet.getModifiedResults().add(rs);
 
         Bundle bundle = new Bundle();
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformPersistResultsEntryFhirObjects(actionDataSet);
         Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+
+        FhirOperations captured = opsCaptor.getValue();
+        assertTrue("Expected resources to be prepared",
+                captured.createResources.size() + captured.updateResources.size() > 0);
+
+        org.hl7.fhir.r4.model.Observation observation = (org.hl7.fhir.r4.model.Observation) captured.createResources
+                .values().stream().filter(r -> r instanceof org.hl7.fhir.r4.model.Observation).findFirst()
+                .orElse((org.hl7.fhir.r4.model.Observation) captured.updateResources.values().stream()
+                        .filter(r -> r instanceof org.hl7.fhir.r4.model.Observation).findFirst().orElse(null));
+
+        assertTrue("Expected Observation in results entry persistence", observation != null);
+        assertEquals(org.hl7.fhir.r4.model.Observation.ObservationStatus.FINAL, observation.getStatus());
     }
 
     @Test
@@ -427,10 +493,11 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformPersistResultValidationFhirObjects(deletableList, analysisUpdateList,
                 resultUpdateList, resultItemList, sampleUpdateList, noteUpdateList);
         Mockito.verify(mockFhirPersistanceService, Mockito.timeout(2000).times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
     }
 
     @Test
@@ -496,15 +563,26 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
 
     @Test
     public void transformAnalysisByIds_shouldPersistFhirResources_whenAnalysisIdsProvided() throws Exception {
-        List<String> analysisIds = Collections.singletonList("1");
+        List<String> analysisIds = Collections.singletonList("2");
 
         Bundle bundle = new Bundle();
         when(mockFhirPersistanceService.createUpdateFhirResourcesInFhirStore(any(FhirOperations.class)))
                 .thenReturn(bundle);
 
+        ArgumentCaptor<FhirOperations> opsCaptor = ArgumentCaptor.forClass(FhirOperations.class);
         fhirTransformService.transformAnalysisByIds(analysisIds);
         Mockito.verify(mockFhirPersistanceService, Mockito.times(1))
-                .createUpdateFhirResourcesInFhirStore(any(FhirOperations.class));
+                .createUpdateFhirResourcesInFhirStore(opsCaptor.capture());
+
+        FhirOperations captured = opsCaptor.getValue();
+        assertTrue("Expected resources to be prepared",
+                captured.createResources.size() + captured.updateResources.size() > 0);
+
+        boolean hasDiagnosticReport = captured.createResources.values().stream()
+                .anyMatch(r -> r instanceof org.hl7.fhir.r4.model.DiagnosticReport)
+                || captured.updateResources.values().stream()
+                        .anyMatch(r -> r instanceof org.hl7.fhir.r4.model.DiagnosticReport);
+        assertTrue("Expected DiagnosticReport for analysis", hasDiagnosticReport);
     }
 
     @Test

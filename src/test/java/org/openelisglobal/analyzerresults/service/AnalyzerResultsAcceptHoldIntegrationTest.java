@@ -72,6 +72,19 @@ public class AnalyzerResultsAcceptHoldIntegrationTest extends BaseWebContextSens
     public void setUp() throws Exception {
         super.setUp();
         executeDataSetWithStateManagement("testdata/analyzer-hold-1145.xml");
+        // Resync sequences for every table the accept-service INSERT path writes to.
+        // Other test fixtures (e.g. result-facade.xml) use TRUNCATE RESTART IDENTITY
+        // and then insert rows with explicit IDs, leaving the sequence stranded at 1
+        // while those rows already exist. The next nextval() call would return 1 and
+        // collide with the existing row, causing ConstraintViolationException in batch.
+        resyncSequence("clinlims.sample_seq", "clinlims.sample");
+        resyncSequence("clinlims.sample_item_seq", "clinlims.sample_item");
+        resyncSequence("clinlims.sample_human_seq", "clinlims.sample_human");
+        resyncSequence("clinlims.analysis_seq", "clinlims.analysis");
+        resyncSequence("clinlims.result_seq", "clinlims.result");
+        resyncSequence("clinlims.person_seq", "clinlims.person");
+        resyncSequence("clinlims.patient_seq", "clinlims.patient");
+        resyncSequence("clinlims.provider_seq", "clinlims.provider");
         // Invalidate any cached UNKNOWN_patient singleton so PatientUtil
         // re-resolves (or creates) it from the freshly seeded container.
         PatientUtil.invalidateUnknownPatients();
