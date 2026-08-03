@@ -5,12 +5,21 @@
     <localization id="1" description="Blood Sample" />
     <localization id="2" description="Urine Sample" />
     <localization id="3" description="Serum Sample" />
+    <localization id="11" description="HIV Viral Load" />
+    <localization id="12" description="Urine Dipstick" />
+    <localization id="13" description="Serum Electrolytes" />
     <localization_value id="1" localization_id="1"
         locale="en" value="Blood Sample" />
     <localization_value id="2" localization_id="2"
         locale="en" value="Urine Sample" />
     <localization_value id="3" localization_id="3"
         locale="en" value="Serum Sample" />
+    <localization_value id="11" localization_id="11"
+        locale="en" value="HIV Viral Load" />
+    <localization_value id="12" localization_id="12"
+        locale="en" value="Urine Dipstick" />
+    <localization_value id="13" localization_id="13"
+        locale="en" value="Serum Electrolytes" />
     <supported_locale id="1" locale_code="en"
         display_name="English" is_active="true" is_fallback="true"
         sort_order="1" />
@@ -74,15 +83,15 @@
     <!-- ───────── Tests ───────── -->
     <test id="1" name="HIV Viral Load"
         description="HIV Viral Load Test" guid="TEST-HIV-VL-001"
-        name_localization_id="1" reporting_name_localization_id="1"
+        name_localization_id="11" reporting_name_localization_id="11"
         test_section_id="1" lastupdated="2024-01-01 00:00:00" />
     <test id="2" name="Urine Dipstick"
         description="Urine Dipstick Test" guid="TEST-URINE-DS-001"
-        name_localization_id="2" reporting_name_localization_id="2"
+        name_localization_id="12" reporting_name_localization_id="12"
         test_section_id="1" lastupdated="2024-01-01 00:00:00" />
     <test id="3" name="Serum Electrolytes"
         description="Serum Electrolytes Panel" guid="TEST-SERUM-EL-001"
-        name_localization_id="3" reporting_name_localization_id="3"
+        name_localization_id="13" reporting_name_localization_id="13"
         test_section_id="1" lastupdated="2024-01-01 00:00:00" />
 
     <!-- ───────── Analyses ───────── -->
