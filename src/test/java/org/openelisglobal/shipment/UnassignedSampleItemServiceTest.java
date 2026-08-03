@@ -25,7 +25,8 @@ public class UnassignedSampleItemServiceTest extends BaseWebContextSensitiveTest
 
     @org.junit.After
     public void cleanUp() throws Exception {
-        cleanRowsInCurrentConnection(new String[] { "referral", "box_sample_item", "shipping_box", "analysis", "sample_item", "sample" });
+        cleanRowsInCurrentConnection(
+                new String[] { "referral", "box_sample_item", "shipping_box", "analysis", "sample_item", "sample" });
     }
 
     @Test
