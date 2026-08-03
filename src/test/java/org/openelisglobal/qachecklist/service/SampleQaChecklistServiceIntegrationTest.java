@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -22,6 +23,11 @@ public class SampleQaChecklistServiceIntegrationTest extends BaseWebContextSensi
     @Before
     public void init() throws Exception {
         executeDataSetWithStateManagement("testdata/sample-qa-checklist.xml");
+    }
+
+    @After
+    public void cleanUp() throws Exception {
+        cleanRowsInCurrentConnection(new String[] { "sample_qa_checklist", "sample" });
     }
 
     @Test
