@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -43,6 +44,12 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
     private ReferralService referralService;
 
     @Before
+    @After
+    public void cleanUp() throws Exception {
+        cleanRowsInCurrentConnection(new String[] { "referral_result", "referral", "analysis", "sample_item", "sample",
+                "result", "system_user" });
+    }
+
     public void setUp() throws Exception {
         executeDataSetWithStateManagement("testdata/referral-set.xml");
     }
