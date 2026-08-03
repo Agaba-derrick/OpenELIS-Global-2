@@ -59,6 +59,12 @@ public class GenericSampleOrderServiceTest extends BaseWebContextSensitiveTest {
         }
 
         executeDataSetWithStateManagement("testdata/system-user.xml");
+
+        // sample_seq and sample_item_seq are standalone sequences (not reset by
+        // TRUNCATE ... RESTART IDENTITY). Resync them so service-path inserts do not
+        // collide with any fixture-seeded id rows depending on suite order.
+        resyncSequence("clinlims.sample_seq", "clinlims.sample");
+        resyncSequence("clinlims.sample_item_seq", "clinlims.sample_item");
     }
 
     // Accession numbers like "TEST-DEFAULT-001" are arbitrary unique identifiers
