@@ -38,5 +38,5 @@ DBUnit, and the 5-layer architecture standards.
 ## Reference
 
 - [Overview](reference/overview.md) - Detailed infrastructure and patterns.
-- [Template](templates/integration-test-template.java) - Boilerplate for new
+- [Template](templates/integration-test-template.java.template) - Boilerplate for new
   tests.

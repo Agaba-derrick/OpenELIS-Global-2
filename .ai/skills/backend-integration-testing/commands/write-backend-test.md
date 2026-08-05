@@ -16,7 +16,7 @@ following the OpenELIS Global 2 standards.
 1. **Locate the target class** to understand its dependencies and methods.
 2. **Identify dependencies** that need to be mocked (external) vs. autowired
    (internal).
-3. **Generate the test class** using the `integration-test-template.java`.
+3. **Generate the test class** using the `integration-test-template.java.template`.
 4. **Draft a DBUnit XML dataset** structure required for the test.
 5. **Provide the Maven command** to run the specific test.
 

@@ -224,16 +224,16 @@ If the schema fails to apply:
 
 - Check `src/main/resources/liquibase/base-changelog.xml` (loaded onto the test
   classpath via `BaseTestConfig`) for syntax errors or missing changesets.
-- Note: The test database is ephemeral; sometimes a manual `mvn clean` is needed
-  to reset the local Testcontainers state.
 
-## 9. Enforcing Aggressive Assertions
+## 9. Enforcing Aggressive Assertions (Constitution V.6)
 
-When writing or reviewing backend integration tests, developers and agents MUST
-NOT use weak assertions that only verify nullness or emptiness. These weak
-checks often pass when incorrect or incomplete data is returned.
+> **Authoritative source**:
+> [`.specify/guides/testing-roadmap.md#test-quality-invariants-constitution-v6`](.specify/guides/testing-roadmap.md#test-quality-invariants-constitution-v6)
 
-### Comparison of Assertion Styles
+Every integration test in this skill MUST satisfy the following invariants.
+Violating any of them is a blocking review finding.
+
+### Quick Reference: Weak vs. Aggressive Assertions
 
 | Weak/Prohibited Assertion             | Aggressive/Mandatory Assertion                           | Why?                                                                                 |
 | :------------------------------------ | :------------------------------------------------------- | :----------------------------------------------------------------------------------- |
@@ -241,3 +241,75 @@ checks often pass when incorrect or incomplete data is returned.
 | `assertFalse(list.isEmpty());`        | `assertEquals("expectedValue", list.get(0).getValue());` | Ensuring the exact values are mapped prevents silent data truncation/leaks.          |
 | `assertNotNull(savedEntity.getId());` | `assertEquals("custom-id-99", savedEntity.getName());`   | Having an ID generated doesn't guarantee properties were correctly persisted/mapped. |
 | `assertTrue(result);`                 | `assertEquals(ExpectedEnum.STATUS, entity.getStatus());` | Asserting specific state enums/values validates business logic correctness.          |
+
+### U1 — Inversion Test (Universal, Mandatory)
+
+Replace the function under test with a hardcoded return value. The test **MUST**
+fail. If it still passes, the test is scaffolding, not a regression guard.
+
+```java
+// ✅ GOOD — test would fail if getAllActiveMenus() returned an empty list
+Assert.assertEquals(2, activeMenus.size());
+Assert.assertEquals("Home", activeMenus.get(0).getDescription());
+
+// ❌ BAD — test passes even if getAllActiveMenus() returns List.of()
+Assert.assertNotNull(activeMenus);
+```
+
+### J1 — No Assert-on-Mock-Return
+
+`when(x).thenReturn(Y)` followed by `assertEquals(Y, result)` with no
+intervening logic tests Mockito, not your code. Assertions must verify a
+**transformation** of the mock output.
+
+```java
+// ❌ BAD
+when(menuDao.getAllActiveMenus()).thenReturn(List.of(menu));
+List<Menu> result = menuService.getAllActiveMenus();
+assertEquals(List.of(menu), result); // tautology
+
+// ✅ GOOD — verifies the service applies filtering
+when(menuDao.getAllMenus()).thenReturn(List.of(activeMenu, inactiveMenu));
+List<Menu> result = menuService.getAllActiveMenus();
+assertEquals(1, result.size());
+assertTrue(result.get(0).getIsActive());
+```
+
+### J2 — Specific-Matcher Argument Verification
+
+`verify(service).save(any())` tests nothing. Use argument matchers that
+validate the actual value passed.
+
+```java
+// ❌ BAD
+verify(menuDao).save(any());
+
+// ✅ GOOD
+verify(menuDao).save(argThat(m -> m.getDescription().equals("Home")));
+```
+
+### J3 — Auth Before Business Logic (Controller Tests)
+
+Every controller test suite **MUST** include a test verifying that
+unauthenticated requests receive `401` **before** any service method is called.
+
+```java
+@Test
+public void getMenus_unauthenticated_returns401() throws Exception {
+    mockMvc.perform(get("/rest/menu")
+            .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isUnauthorized());
+    verifyNoInteractions(menuService);
+}
+```
+
+### Anti-Patterns Prohibited in This Skill
+
+| Anti-Pattern | Why It's Prohibited |
+|---|---|
+| `assertNotNull(result)` as primary assertion | Passes even when logic is deleted |
+| `any()` in `verify()` without comment | Verifies the call happened, not what was passed |
+| Happy-path only | Zero negative/edge/error coverage |
+| `assertEquals(mock, result)` with no transformation | Tests Mockito, not the SUT |
+| No 401/403 test in controller suites | Auth bypass goes undetected |
+remove stale mvn clean note)
