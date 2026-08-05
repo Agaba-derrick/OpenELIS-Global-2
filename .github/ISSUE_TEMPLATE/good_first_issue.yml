@@ -63,7 +63,7 @@ body:
   - type: textarea
     id: implementation_steps
     attributes:
-      label: 👩💻 Implementation Steps (End-to-End)
+      label: 👩‍💻 Implementation Steps (End-to-End)
       description: Please write out the end-to-end process for completing this issue from start to finish. Clear, connected instructions help make the contribution experience smoother and more enjoyable.
       placeholder: |
         Edit here. Example:
@@ -74,28 +74,45 @@ body:
     validations:
       required: true
 
-  - type: markdown
+  - type: checkboxes
+    id: acceptance_criteria
     attributes:
-      value: |
-        ### ✅ Acceptance Criteria
-        To merge a pull request for this issue:
-        - [ ] **Scope:** Changes are limited to this issue
-        - [ ] **Behavior:** No other behavior or public API changes
-        - [ ] **Tests:** Existing and new tests pass (skip tests locally during build using `-DskipTests -Dmaven.test.skip=true`)
-        - [ ] **Review:** All code review feedback addressed
+      label: ✅ Acceptance Criteria
+      description: To merge a pull request for this issue
+      options:
+        - label: "**Scope:** Changes are limited to this issue"
+          required: false
+        - label: "**Behavior:** No other behavior or public API changes"
+          required: false
+        - label: "**Tests:** Existing and any new tests pass"
+          required: false
+        - label: "**Review:** All code review feedback addressed"
+          required: false
 
-        ### 📋 Step-by-Step Contribution Guide
+  - type: checkboxes
+    id: contribution_guide
+    attributes:
+      label: 📋 Step-by-Step Contribution Guide
+      description: |
         To help your first contribution go as smoothly as possible, we recommend following these steps:
-        - [ ] Comment on the issue to indicate interest, and a maintainer will help with assignment
-        - [ ] Fork the repository and create a branch from `develop`
-        - [ ] Set up the project by following the instructions in `README.md`
-        - [ ] Make the requested changes
-        - [ ] Formatter verification: run `mvn spotless:apply` for Java or `npm run format` for React
-        - [ ] Follow the repository contribution guidance and prepare a clean pull request for review
-        - [ ] Push your branch and open a pull request
 
         *Read [CONTRIBUTING.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/CONTRIBUTING.md) for contribution guidance.*
         *Read [README.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/README.md) for setup instructions.*
+      options:
+        - label: Comment on the issue to indicate interest, and a maintainer will help with assignment
+          required: false
+        - label: Fork the repository and create a branch from `develop`
+          required: false
+        - label: Set up the project by following the instructions in `README.md`
+          required: false
+        - label: Make the requested changes
+          required: false
+        - label: "Formatter verification: run `mvn spotless:apply` for Java or `npm run format` for React"
+          required: false
+        - label: Follow the repository contribution guidance and prepare a clean pull request for review
+          required: false
+        - label: Push your branch and open a pull request
+          required: false
 
   - type: textarea
     id: additional_info

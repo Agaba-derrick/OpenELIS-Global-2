@@ -45,8 +45,8 @@ body:
       description: Describe the issue in a clear, approachable way. Explain the context, what needs to change, and the expected outcome without assuming deep knowledge of the codebase.
       placeholder: |
         Edit here. Example:
-        The PermissionModuleServiceImpl class has a private permission property, but there is no public getter to retrieve its current value.
-        Adding a getPermission() getter would allow other services to inspect the permission value, which is useful for validation and debugging.
+        The PermissionModuleServiceTest class is missing a test case for when an invalid module name is requested.
+        Adding a testInvalidModuleName() method would improve our test coverage and ensure the service handles unknown modules gracefully.
     validations:
       required: true
 
@@ -57,52 +57,67 @@ body:
       description: Describe the approach for addressing this issue in a clear and focused way. Explain what will be changed and what the end result should look like.
       placeholder: |
         Edit here. Example:
-        Add a getPermission() getter to PermissionModuleServiceImpl and a unit test to verify it works correctly.
+        Add a testInvalidModuleName() method to PermissionModuleServiceTest.java that asserts an exception is thrown or null is returned.
         The changes should:
-        1. Add a getter that returns the permission property.
-        2. Follow the existing patterns used in the class.
+        1. Setup the service with mock dependencies.
+        2. Call the method with an invalid module name.
+        3. Assert the expected outcome.
     validations:
       required: true
 
   - type: textarea
     id: implementation_steps
     attributes:
-      label: 👩💻 Implementation Steps
+      label: 👩‍💻 Implementation Steps
       description: Walk through how to implement the solution in clear, easy-to-follow steps. Beginner Issues leave a little more room for exploration, so it's helpful to describe the overall approach, key files, and validation.
       placeholder: |
         Edit here. Example:
-        Step 1: Add the getter
-        - Open PermissionModuleServiceImpl.java
-        - Find where other getters are defined and add the new getter.
+        Step 1: Open the test file
+        - Open PermissionModuleServiceTest.java
         
-        Step 2: Add a unit test
-        - Open PermissionModuleServiceImplTest.java and add a test verifying the getter works as expected.
+        Step 2: Add the test case
+        - Look at how existing tests are structured and add a new @Test method for invalid module names.
         
         Step 3: Verify
-        - Run the test suite to verify.
+        - Run the test suite to verify the test passes.
     validations:
       required: true
 
-  - type: markdown
+  - type: checkboxes
+    id: acceptance_criteria
     attributes:
-      value: |
-        ### ✅ Acceptance Criteria
-        To help get this change merged smoothly:
-        - [ ] **Scope:** Changes are limited to this issue
-        - [ ] **Behavior:** No other behavior or public API changes
-        - [ ] **Tests:** Existing and any new tests pass
-        - [ ] **Review:** All code review feedback addressed
+      label: ✅ Acceptance Criteria
+      description: To help get this change merged smoothly
+      options:
+        - label: "**Scope:** Changes are limited to this issue"
+          required: false
+        - label: "**Behavior:** No other behavior or public API changes"
+          required: false
+        - label: "**Tests:** Existing and any new tests pass"
+          required: false
+        - label: "**Review:** All code review feedback addressed"
+          required: false
 
-        ### 📋 Step-by-Step Contribution Guide
+  - type: checkboxes
+    id: contribution_guide
+    attributes:
+      label: 📋 Step-by-Step Contribution Guide
+      description: |
         To help keep contributions consistent and easy to review, remember these key steps:
-        - [ ] Comment on the issue to indicate interest, and a maintainer will help with assignment
-        - [ ] Fork the repository and create a branch from `develop`
-        - [ ] Make the requested changes following Spotless (Java) or Prettier (React) guidelines
-        - [ ] Follow the repository contribution guidance and prepare a clean pull request for review
-        - [ ] Push your branch and open a pull request
 
         *Read [CONTRIBUTING.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/CONTRIBUTING.md) for contribution guidance.*
         *Read [README.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/README.md) for setup instructions.*
+      options:
+        - label: Comment on the issue to indicate interest, and a maintainer will help with assignment
+          required: false
+        - label: Fork the repository and create a branch from `develop`
+          required: false
+        - label: Make the requested changes following Spotless (Java) or Prettier (React) guidelines
+          required: false
+        - label: Follow the repository contribution guidance and prepare a clean pull request for review
+          required: false
+        - label: Push your branch and open a pull request
+          required: false
 
   - type: textarea
     id: additional_info

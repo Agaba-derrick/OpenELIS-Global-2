@@ -66,7 +66,7 @@ body:
   - type: textarea
     id: implementation_steps
     attributes:
-      label: 👩💻 Implementation Steps (End-to-End)
+      label: 👩‍💻 Implementation Steps (End-to-End)
       description: Please write out the end-to-end process for completing this issue. Step-by-step instructions make it much easier for first-time contributors.
       placeholder: |
         Edit here. Example:

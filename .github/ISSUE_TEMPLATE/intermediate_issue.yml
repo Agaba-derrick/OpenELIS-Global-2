@@ -62,23 +62,34 @@ body:
     validations:
       required: true
 
-  - type: markdown
+  - type: checkboxes
+    id: acceptance_criteria
     attributes:
-      value: |
-        ### ✅ Acceptance Criteria
-        To merge a pull request for this issue:
-        - [ ] **Scope:** Changes are limited to this issue
-        - [ ] **Architecture:** Follows the 5-layer backend pattern / Carbon UI guidelines
-        - [ ] **Tests:** Unit and Integration tests pass and new coverage added
-        - [ ] **Review:** All code review feedback addressed
+      label: ✅ Acceptance Criteria
+      description: A pull request for this issue should
+      options:
+        - label: "**Scope:** Changes are limited to this issue"
+          required: false
+        - label: "**Behavior:** Expected behavior matches the description above"
+          required: false
+        - label: "**Tests:** Existing and new tests pass"
+          required: false
+        - label: "**Review:** All code review feedback addressed"
+          required: false
 
-        ### 📋 Step-by-Step Contribution Guide
-        To help keep contributions consistent and easy to review, remember these key steps:
-        - [ ] Comment on the issue to indicate interest, and a maintainer will help with assignment
-        - [ ] Fork the repository and create a branch from `develop`
-        - [ ] Make the requested changes following Spotless (Java) or Prettier (React) guidelines
-        - [ ] Follow the repository contribution guidance and prepare a clean pull request for review
-        - [ ] Push your branch and open a pull request
-
+  - type: checkboxes
+    id: contribution_guide
+    attributes:
+      label: 📋 Contribution Guide
+      description: |
         *Read [CONTRIBUTING.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/CONTRIBUTING.md) for contribution guidance.*
         *Read [README.md](https://github.com/DIGI-UW/OpenELIS-Global-2/blob/develop/README.md) for setup instructions.*
+      options:
+        - label: Comment on the issue to indicate interest, and a maintainer will help with assignment
+          required: false
+        - label: Fork the repository and create a branch from `develop`
+          required: false
+        - label: Follow the repository contribution guidance and prepare a clean pull request for review
+          required: false
+        - label: Push your branch and open a pull request
+          required: false
