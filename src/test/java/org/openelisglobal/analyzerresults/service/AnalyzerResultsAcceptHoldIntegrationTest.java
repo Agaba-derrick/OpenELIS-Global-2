@@ -85,6 +85,7 @@ public class AnalyzerResultsAcceptHoldIntegrationTest extends BaseWebContextSens
         resyncSequence("clinlims.person_seq", "clinlims.person");
         resyncSequence("clinlims.patient_seq", "clinlims.patient");
         resyncSequence("clinlims.provider_seq", "clinlims.provider");
+        resyncSequence("clinlims.observation_history_seq", "clinlims.observation_history");
         // Invalidate any cached UNKNOWN_patient singleton so PatientUtil
         // re-resolves (or creates) it from the freshly seeded container.
         PatientUtil.invalidateUnknownPatients();
