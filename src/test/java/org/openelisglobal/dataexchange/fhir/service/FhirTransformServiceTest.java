@@ -96,6 +96,16 @@ public class FhirTransformServiceTest extends BaseWebContextSensitiveTest {
             ReflectionTestUtils.setField(fhirTransformServiceTarget, "fhirPersistanceService",
                     originalFhirPersistanceService);
         }
+        cleanRowsInCurrentConnection(new String[] { "clinlims.analysis", "clinlims.analyte", "clinlims.dictionary",
+                "clinlims.dictionary_category", "clinlims.label", "clinlims.localization",
+                "clinlims.localization_value", "clinlims.method", "clinlims.observation_history",
+                "clinlims.observation_history_type", "clinlims.organization", "clinlims.panel", "clinlims.panel_item",
+                "clinlims.patient", "clinlims.person", "clinlims.provider", "clinlims.report", "clinlims.result",
+                "clinlims.result_signature", "clinlims.sample", "clinlims.sample_human", "clinlims.sample_item",
+                "clinlims.sampletype_test", "clinlims.scriptlet", "clinlims.status_of_sample",
+                "clinlims.supported_locale", "clinlims.system_user", "clinlims.test", "clinlims.test_analyte",
+                "clinlims.test_formats", "clinlims.test_result", "clinlims.test_section", "clinlims.test_trailer",
+                "clinlims.type_of_sample", "clinlims.unit_of_measure" });
     }
 
     @Test

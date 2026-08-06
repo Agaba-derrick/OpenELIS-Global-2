@@ -97,6 +97,9 @@ public class AnalyzerResultsAcceptHoldIntegrationTest extends BaseWebContextSens
         // The analyzer_results staging row and fixture rows are removed by the
         // TRUNCATE inside executeDataSetWithStateManagement at the next setUp().
         cleanAccessionData();
+        cleanRowsInCurrentConnection(new String[] { "clinlims.analyzer_results", "clinlims.analyzer",
+                "clinlims.sampletype_test", "clinlims.test", "clinlims.type_of_sample", "clinlims.localization",
+                "clinlims.status_of_sample", "clinlims.system_user" });
     }
 
     // ------------------------------------------------------------------
