@@ -13,6 +13,7 @@ import org.openelisglobal.analyzer.service.AnalyzerService;
 import org.openelisglobal.analyzer.valueholder.Analyzer;
 import org.openelisglobal.analyzerimport.service.AnalyzerTestMappingService;
 import org.openelisglobal.analyzerimport.valueholder.AnalyzerTestMapping;
+import org.openelisglobal.common.domain.Domain;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.util.ControllerUtills;
 import org.openelisglobal.dictionary.service.DictionaryService;
@@ -49,6 +50,7 @@ import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -209,6 +211,10 @@ public class TestCatalogEditorRestController {
         Map<String, List<CatalogHealthService.Finding>> findingsByTest = catalogHealthService != null
                 ? catalogHealthService.getAll()
                 : Map.of();
+        // A test is LOINC-identifiable through the legacy column OR any active LOINC
+        // mapping — including one scoped to a component or a single specimen. Resolved
+        // in one query so decorating the rows below stays a set lookup.
+        Set<String> loincMappedTestIds = terminologyService.getTestIdsWithActiveSource("LOINC");
         String searchLower = search == null ? null : search.toLowerCase(Locale.ROOT);
         // Resolve the test ids for the requested sample type once (one query),
         // rather than looking up each test's sample types while filtering.
@@ -254,7 +260,7 @@ public class TestCatalogEditorRestController {
             row.domain = test.getDomain();
             row.active = active;
             row.amr = testAmr;
-            row.hasLoinc = !isBlank(test.getLoinc());
+            row.hasLoinc = !isBlank(test.getLoinc()) || loincMappedTestIds.contains(test.getId());
             // Coverage-incomplete decoration is wired with Ranges/Coverage Validation (M7).
             row.coverageIncomplete = false;
             row.findings = findings;
@@ -430,9 +436,9 @@ public class TestCatalogEditorRestController {
         }
         EditorEnvelope envelope = new EditorEnvelope();
         envelope.testId = test.getId();
-        // Name augmented with the sample type (e.g. "Covid-PCR (Urine)") so the
-        // selected test is distinguishable, matching the list view.
-        envelope.name = TestServiceImpl.getLocalizedTestNameWithType(test);
+        // Every specimen named in full. The list view abbreviates to "(first +n)"
+        // for readability; on the editor the whole configuration should be visible.
+        envelope.name = TestServiceImpl.getLocalizedTestNameWithAllTypes(test);
         envelope.code = test.getLocalCode();
         envelope.domain = test.getDomain();
         envelope.applicableSections = V1_SECTIONS;
@@ -506,9 +512,12 @@ public class TestCatalogEditorRestController {
         LoincIntegrity integrity = new LoincIntegrity();
         integrity.loinc = test.getLoinc();
         integrity.active = test.isActive();
-        // A test that should receive results (active + orderable) but has no LOINC
-        // can never be matched by the resolver.
-        integrity.noLoinc = test.isActive() && Boolean.TRUE.equals(test.getOrderable()) && isBlank(test.getLoinc());
+        // A test that should receive results (active + orderable) but carries no LOINC
+        // anywhere can never be matched by the resolver. A mapping on a component or a
+        // single specimen is still a LOINC the resolver can match, so it counts — only
+        // a test with none at all is flagged.
+        integrity.noLoinc = test.isActive() && Boolean.TRUE.equals(test.getOrderable()) && isBlank(test.getLoinc())
+                && !terminologyService.hasActiveMappingForSource(testId, "LOINC");
         if (!isBlank(test.getLoinc())) {
             for (Test other : testService.getActiveTestsByLoinc(test.getLoinc())) {
                 if (other.getId() != null && !other.getId().equals(testId)) {
@@ -522,24 +531,26 @@ public class TestCatalogEditorRestController {
         return ResponseEntity.ok(integrity);
     }
 
-    private static final List<String> DOMAINS = List.of("CLINICAL", "ENVIRONMENTAL", "VECTOR");
+    private static final List<String> DOMAINS = java.util.Arrays.stream(Domain.values()).map(Enum::name)
+            .collect(java.util.stream.Collectors.toList());
 
-    // D-030 (OGC-1145 FR-3): test.domain (CLINICAL/ENVIRONMENTAL/VECTOR) vs the
-    // legacy type_of_sample.domain chars (sample_domain table: Human, Newborn,
-    // Environmental, Animal). Sample types with no domain stay offerable
-    // everywhere so legacy data never blocks the editor.
-    private static final Map<String, Set<String>> COMPATIBLE_SAMPLE_DOMAINS = Map.of("CLINICAL", Set.of("H", "N"),
-            "ENVIRONMENTAL", Set.of("E"), "VECTOR", Set.of("A"));
-
+    // D-030 (OGC-1145 FR-3): a test's domain (CLINICAL/ENVIRONMENTAL/VECTOR) vs
+    // the sample type's domain. The single source of truth for interpreting a
+    // sample-type domain — legacy one-character code or migrated enum value — is
+    // Domain.normalize; both this guard and the value emitted to
+    // the client run through it. Sample types with no (or unknown) domain stay
+    // offerable everywhere so legacy data never blocks the editor.
     private static boolean sampleTypeDomainCompatible(String testDomain, TypeOfSample type) {
         if (type == null) {
             return false;
         }
-        if (isBlank(testDomain) || isBlank(type.getDomain())) {
+        Domain typeDomain = Domain.fromRaw(type.getDomain());
+        // Blank test domain, or a sample type with no/unknown domain, stays
+        // offerable everywhere so legacy data never blocks the editor.
+        if (isBlank(testDomain) || typeDomain == null) {
             return true;
         }
-        Set<String> allowed = COMPATIBLE_SAMPLE_DOMAINS.get(testDomain);
-        return allowed == null || allowed.contains(type.getDomain());
+        return typeDomain.name().equals(testDomain);
     }
 
     /**
@@ -655,6 +666,12 @@ public class TestCatalogEditorRestController {
         // Activation (N→Y) is gated on reference-range coverage (the H-03 safety
         // gate) and must go through POST .../activate; basic-info only persists a
         // deactivation, so it cannot be used to bypass the coverage acknowledgment.
+        // Asking for it here is refused rather than answered 200 and dropped, which
+        // told the caller the activation had been saved when it had not. Sending
+        // active=true for an already-active test is not a change, so it still passes.
+        if (Boolean.TRUE.equals(body.active) && !test.isActive()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
         if (body.active != null && !body.active) {
             test.setIsActive("N");
         }
@@ -1250,7 +1267,7 @@ public class TestCatalogEditorRestController {
             SampleTypeOption option = new SampleTypeOption();
             option.id = type.getId();
             option.name = type.getLocalizedName();
-            option.domain = type.getDomain();
+            option.domain = Domain.normalize(type.getDomain());
             resp.sampleTypes.add(option);
         }
         return resp;
@@ -1489,7 +1506,7 @@ public class TestCatalogEditorRestController {
             SampleTypeOption o = new SampleTypeOption();
             o.id = t.getId();
             o.name = !isBlank(t.getDescription()) ? t.getDescription() : t.getLocalAbbreviation();
-            o.domain = t.getDomain();
+            o.domain = Domain.normalize(t.getDomain());
             options.add(o);
         }
         return options;
@@ -1678,7 +1695,7 @@ public class TestCatalogEditorRestController {
             SampleTypeOption option = new SampleTypeOption();
             option.id = type.getId();
             option.name = type.getLocalizedName();
-            option.domain = type.getDomain();
+            option.domain = Domain.normalize(type.getDomain());
             resp.sampleTypes.add(option);
         }
         return resp;

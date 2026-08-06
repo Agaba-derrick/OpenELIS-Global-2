@@ -23,6 +23,7 @@ import {
   putToOpenElisServer,
 } from "../../../utils/Utils";
 import { NotificationContext } from "../../../layout/Layout";
+import useDomains from "../../../common/useDomains";
 import ActivationAckModal from "./ActivationAckModal";
 
 /**
@@ -34,26 +35,43 @@ import ActivationAckModal from "./ActivationAckModal";
  * Reporting name, Code (auto-suggested), Lab Unit, Sample type, Domain, toggles,
  * Description — Save creates the test Inactive (FR-3) and lands on its editor.
  */
-const DOMAINS = ["CLINICAL", "ENVIRONMENTAL", "VECTOR"];
-
-// OGC-1145 FR-3 (D-030 domain guard): test domain → compatible legacy
-// sample-type domain chars (sample_domain: Human/Newborn/Environmental/Animal).
-// Sample types without a domain stay offerable everywhere (legacy data).
-const COMPATIBLE_SAMPLE_DOMAINS = {
-  CLINICAL: ["H", "N"],
-  ENVIRONMENTAL: ["E"],
-  VECTOR: ["A"],
+// OGC-1145 FR-3 (D-030 domain guard). Since the OGC-296 domain migration a
+// sample type's domain is the enum value (CLINICAL/ENVIRONMENTAL/VECTOR), but
+// legacy one-character codes (sample_domain: H uman / N ewborn / E nvironmental
+// / A nimal) can still arrive from un-migrated or plugin-inserted rows, so we
+// normalize before comparing — the single mirror of the backend
+// SampleTypeDomainMapper. Unknown/blank domains stay offerable everywhere so
+// legacy data never blocks the editor.
+const normalizeSampleDomain = (raw) => {
+  if (!raw) {
+    return null;
+  }
+  switch (String(raw).trim().toUpperCase()) {
+    case "E":
+    case "ENVIRONMENTAL":
+      return "ENVIRONMENTAL";
+    case "A":
+    case "VECTOR":
+      return "VECTOR";
+    case "H":
+    case "N":
+    case "CLINICAL":
+      return "CLINICAL";
+    default:
+      return null;
+  }
 };
 
 const sampleTypeMatchesDomain = (type, domain) => {
   if (!domain || !type?.domain) {
     return true;
   }
-  const allowed = COMPATIBLE_SAMPLE_DOMAINS[domain];
-  return !allowed || allowed.includes(type.domain);
+  const normalized = normalizeSampleDomain(type.domain);
+  return normalized === null || normalized === domain;
 };
 
 const BasicInfoSection = ({ testId }) => {
+  const domains = useDomains();
   const intl = useIntl();
   const history = useHistory();
   const location = useLocation();
@@ -321,7 +339,14 @@ const BasicInfoSection = ({ testId }) => {
         } else if (res && !res.error) {
           setAckModalOpen(false);
           setCoverageReport(null);
-          update({ active: true });
+          // Activation also makes the test orderable, so take both flags from the
+          // response rather than assuming.
+          update({
+            active: res.active !== undefined ? res.active : true,
+            ...(res.orderable !== undefined
+              ? { orderable: res.orderable }
+              : {}),
+          });
           setNotificationVisible(true);
           addNotification({
             kind: "success",
@@ -418,14 +443,12 @@ const BasicInfoSection = ({ testId }) => {
           valueSelected={createForm.domain}
           onChange={(value) => updateCreate({ domain: value })}
         >
-          {DOMAINS.map((d) => (
+          {domains.map((d) => (
             <RadioButton
-              key={d}
-              id={`create-domain-${d}`}
-              value={d}
-              labelText={intl.formatMessage({
-                id: `label.testCatalog.basicInfo.domain.${d}`,
-              })}
+              key={d.id}
+              id={`create-domain-${d.id}`}
+              value={d.id}
+              labelText={intl.formatMessage({ id: d.labelKey })}
             />
           ))}
         </RadioButtonGroup>
@@ -597,14 +620,12 @@ const BasicInfoSection = ({ testId }) => {
           }
         }}
       >
-        {DOMAINS.map((d) => (
+        {domains.map((d) => (
           <RadioButton
-            key={d}
-            id={`domain-${d}`}
-            value={d}
-            labelText={intl.formatMessage({
-              id: `label.testCatalog.basicInfo.domain.${d}`,
-            })}
+            key={d.id}
+            id={`domain-${d.id}`}
+            value={d.id}
+            labelText={intl.formatMessage({ id: d.labelKey })}
           />
         ))}
       </RadioButtonGroup>
@@ -631,7 +652,8 @@ const BasicInfoSection = ({ testId }) => {
           if (checked && !form.active) {
             handleActivate(null);
           } else {
-            update({ active: checked });
+            // Activation sets orderable, so deactivation clears it again.
+            update({ active: checked, orderable: false });
           }
         }}
       />

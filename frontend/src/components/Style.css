@@ -192,36 +192,11 @@ li.clickableUserDetails:hover {
   width: 120%;
 }
 
-.inlineDiv {
-  display: flex;
-  margin-top: 2%;
-  margin-bottom: 3%;
-  margin-left: 1%;
-}
-
 .gpsDiv {
   display: flex;
   margin-top: 2%;
   /* margin-bottom: 3%; */
   margin-left: 1%;
-}
-
-.section {
-  border: 0.5px solid green;
-  border-radius: 3px;
-  margin: 0.5%;
-}
-
-.errorMessage {
-  font-size: 12px;
-  color: red;
-  width: 150px;
-  margin-top: 0.25rem;
-}
-
-.errorMessage::before {
-  content: " ";
-  font-size: 10px;
 }
 
 .inlineDivBlock > div {
@@ -495,23 +470,10 @@ button {
   display: inline-flex !important;
 }
 
-.reduced-padding-nav-menu-item > a.cds--side-nav__link {
-  padding-left: 1rem !important;
-}
-
 /* Compensate padding when active border is added */
 .reduced-padding-nav-menu-item > a.cds--side-nav__link--current,
 .reduced-padding-nav-menu-item > a.cds--side-nav__link[aria-current="page"] {
   padding-left: calc(1rem - 4px) !important; /* Compensate for 4px border */
-}
-
-.top-level-menu-item > a {
-  pointer-events: auto !important;
-  text-decoration: none !important;
-}
-
-.top-level-menu-item > a:hover {
-  background-color: var(--cds-background-hover, #072655);
 }
 
 /* Removed pointer-events: none - was blocking subnav clicks after onClick refactor */
@@ -583,6 +545,29 @@ button {
     margin-left: 0 !important;
     width: 100% !important;
   }
+}
+
+/* Pin/unpin control at the top of the sidenav (desktop only) */
+.sidenav-pin-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.25rem 0.5rem 0;
+}
+
+/* Both sidenavs are white, but only the main nav remaps Carbon's icon tokens
+   (the admin nav hard-codes colors on its own selectors instead), so without
+   this the ghost button inherits the blue header theme's light icon color and
+   renders white-on-white in the admin nav. Match the main nav's icon grey. */
+.sidenav-pin-row .cds--btn--ghost {
+  --cds-icon-primary: #525252;
+  color: #525252;
+}
+
+.sidenav-pin-row .cds--btn--ghost:hover,
+.sidenav-pin-row .cds--btn--ghost:focus {
+  --cds-icon-primary: #161616;
+  color: #161616;
+  background-color: #f4f4f4;
 }
 
 /* Allow sidenav to scroll long menus (e.g. Admin) while hiding scrollbar */

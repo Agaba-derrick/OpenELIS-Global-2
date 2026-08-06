@@ -31,11 +31,9 @@ import {
 } from "@carbon/react";
 import { Add, Edit, Filter } from "@carbon/icons-react";
 import { FormattedMessage, useIntl } from "react-intl";
-import {
-  getFromOpenElisServer,
-  postToOpenElisServerJsonResponse,
-} from "../../utils/Utils";
+import { getFromOpenElisServer } from "../../utils/Utils";
 import PageBreadCrumb from "../../common/PageBreadCrumb";
+import useDomains from "../../common/useDomains";
 import { DEFAULT_SECTION } from "./sectionConfig";
 
 /**
@@ -49,15 +47,12 @@ import { DEFAULT_SECTION } from "./sectionConfig";
  * Type column (FR-39) disambiguates same-name sibling tests. Filter + page state
  * is mirrored to the URL so a reload restores it.
  */
-const DOMAIN_OPTIONS = [
-  { id: "", label: "label.testCatalog.list.filter.allDomains" },
-  { id: "CLINICAL", label: "label.testCatalog.basicInfo.domain.CLINICAL" },
-  {
-    id: "ENVIRONMENTAL",
-    label: "label.testCatalog.basicInfo.domain.ENVIRONMENTAL",
-  },
-  { id: "VECTOR", label: "label.testCatalog.basicInfo.domain.VECTOR" },
-];
+// "All domains" sentinel; the concrete domains come from the single
+// /rest/domains source (see useDomains) so nothing here hard-codes the list.
+const ALL_DOMAINS_OPTION = {
+  id: "",
+  label: "label.testCatalog.list.filter.allDomains",
+};
 
 const STATUS_OPTIONS = [
   { id: "all", label: "label.testCatalog.list.filter.allStatus" },
@@ -77,6 +72,10 @@ const SEARCH_DEBOUNCE_MS = 300;
 const SEVERITY_RANK = { ERROR: 0, WARNING: 1, INFO: 2 };
 
 const TestCatalogList = () => {
+  const domainOptions = [
+    ALL_DOMAINS_OPTION,
+    ...useDomains().map((d) => ({ id: d.id, label: d.labelKey })),
+  ];
   const intl = useIntl();
   const history = useHistory();
 
@@ -311,11 +310,11 @@ const TestCatalogList = () => {
                     id: "label.testCatalog.basicInfo.domain",
                   })}
                   label=""
-                  items={DOMAIN_OPTIONS}
+                  items={domainOptions}
                   itemToString={(item) =>
                     item ? intl.formatMessage({ id: item.label }) : ""
                   }
-                  selectedItem={DOMAIN_OPTIONS.find((o) => o.id === domain)}
+                  selectedItem={domainOptions.find((o) => o.id === domain)}
                   onChange={({ selectedItem }) => {
                     setPage(1);
                     setDomain(selectedItem ? selectedItem.id : "");

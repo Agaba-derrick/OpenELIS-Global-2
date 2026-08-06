@@ -2,13 +2,16 @@ import {
   Close,
   Language,
   Logout,
+  Password,
   Notification,
   Search,
   UserAvatarFilledAlt,
   LocationFilled,
   Menu,
+  Pin,
+  PinFilled,
 } from "@carbon/icons-react";
-import { Select, SelectItem } from "@carbon/react";
+import { IconButton, Select, SelectItem } from "@carbon/react";
 import HelpMenu from "./HelpMenu";
 import AdminSideNav from "../admin/AdminSideNav";
 import React, { createRef, useContext, useEffect, useState } from "react";
@@ -43,10 +46,14 @@ function OEHeader({
   onChangeLanguage,
   navOpen = true,
   isDesktop = true,
+  navPinned = true,
+  navPersistent = isDesktop && navPinned,
+  toggleNavPinned,
   toggleSideNav,
   closeSideNav,
   storageKeyPrefix = "main",
   navContext = "main",
+  showSideNav = true,
 }) {
   const { configurationProperties, enabledLanguages } =
     useContext(ConfigurationContext);
@@ -244,9 +251,10 @@ function OEHeader({
     return () => window.clearTimeout(timer);
   }, []);
 
-  // Click-outside handler: close the drawer on small viewports
+  // Click-outside handler: close the drawer whenever the nav is an overlay
+  // (small viewports, or desktop with the nav unpinned)
   useEffect(() => {
-    if (isDesktop || !navOpen) return;
+    if (navPersistent || !navOpen) return;
 
     const handleClickOutside = (event) => {
       const sideNav = document.querySelector(".cds--side-nav");
@@ -266,7 +274,7 @@ function OEHeader({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [isDesktop, navOpen, closeSideNav]);
+  }, [navPersistent, navOpen, closeSideNav]);
 
   const panelSwitchIcon = () => {
     return userSessionDetails.authenticated ? (
@@ -662,27 +670,29 @@ function OEHeader({
           }}
         >
           <Header id="mainHeader" className="mainHeader" aria-label="">
-            {userSessionDetails.authenticated && !isDesktop && (
-              <button
-                id="sidenav-menu-button"
-                data-cy="menuButton"
-                className="cds--header__action cds--header__menu-trigger cds--header__menu-toggle"
-                aria-label={intl.formatMessage({
-                  id: navOpen
-                    ? "header.icon.menu.close"
-                    : "header.icon.menu.open",
-                })}
-                onClick={toggleSideNav}
-                title={intl.formatMessage({
-                  id: navOpen
-                    ? "header.icon.menu.close"
-                    : "header.icon.menu.open",
-                })}
-                type="button"
-              >
-                {navOpen ? <Close size={20} /> : <Menu size={20} />}
-              </button>
-            )}
+            {userSessionDetails.authenticated &&
+              !navPersistent &&
+              showSideNav && (
+                <button
+                  id="sidenav-menu-button"
+                  data-cy="menuButton"
+                  className="cds--header__action cds--header__menu-trigger cds--header__menu-toggle"
+                  aria-label={intl.formatMessage({
+                    id: navOpen
+                      ? "header.icon.menu.close"
+                      : "header.icon.menu.open",
+                  })}
+                  onClick={toggleSideNav}
+                  title={intl.formatMessage({
+                    id: navOpen
+                      ? "header.icon.menu.close"
+                      : "header.icon.menu.open",
+                  })}
+                  type="button"
+                >
+                  {navOpen ? <Close size={20} /> : <Menu size={20} />}
+                </button>
+              )}
             <HeaderName href="/" prefix="" style={{ padding: "0px" }}>
               <span id="header-logo">{logo()}</span>
               <div className="banner">
@@ -802,14 +812,6 @@ function OEHeader({
                         {userSessionDetails.loginLabUnit}{" "}
                       </li>
                     )}
-                    <li
-                      data-cy="logOut"
-                      className="userDetails clickableUserDetails"
-                      onClick={logout}
-                    >
-                      <Logout style={{ marginRight: "3px" }} />
-                      <FormattedMessage id="header.label.logout" />
-                    </li>
                   </>
                 )}
                 <li className="userDetails">
@@ -834,6 +836,28 @@ function OEHeader({
                     </Select>
                   </Theme>
                 </li>
+                {userSessionDetails.authenticated && (
+                  <>
+                    <li
+                      data-cy="headerChangePassword"
+                      className="userDetails clickableUserDetails"
+                      onClick={() => {
+                        window.location.href = "/ChangePasswordLogin";
+                      }}
+                    >
+                      <Password style={{ marginRight: "3px" }} />
+                      <FormattedMessage id="label.button.changepassword" />
+                    </li>
+                    <li
+                      data-cy="logOut"
+                      className="userDetails clickableUserDetails"
+                      onClick={logout}
+                    >
+                      <Logout style={{ marginRight: "3px" }} />
+                      <FormattedMessage id="header.label.logout" />
+                    </li>
+                  </>
+                )}
                 <li className="userDetails">
                   <label className="cds--label">
                     {" "}
@@ -843,7 +867,7 @@ function OEHeader({
                 </li>
               </ul>
             </HeaderPanel>
-            {userSessionDetails.authenticated && (
+            {userSessionDetails.authenticated && showSideNav && (
               <>
                 <SideNav
                   aria-label="Side navigation"
@@ -851,11 +875,36 @@ function OEHeader({
                     navContext === "admin" ? "admin-shell-side-nav" : undefined
                   }
                   expanded={navOpen}
-                  // Desktop: always-rendered fixed nav; small viewports: overlay drawer
-                  isFixedNav={isDesktop}
-                  isPersistent={isDesktop}
+                  // Pinned desktop: always-rendered fixed nav;
+                  // unpinned desktop + small viewports: overlay drawer
+                  isFixedNav={navPersistent}
+                  isPersistent={navPersistent}
                   isChildOfHeader={true}
                 >
+                  {isDesktop && (
+                    <div className="sidenav-pin-row">
+                      <IconButton
+                        id="sidenav-pin-toggle"
+                        data-cy="sidenavPinToggle"
+                        data-testid="sidenav-pin-toggle"
+                        kind="ghost"
+                        size="sm"
+                        align="right"
+                        label={intl.formatMessage({
+                          id: navPinned
+                            ? "header.icon.menu.unpin"
+                            : "header.icon.menu.pin",
+                        })}
+                        onClick={toggleNavPinned}
+                      >
+                        {navPinned ? (
+                          <PinFilled size={16} />
+                        ) : (
+                          <Pin size={16} />
+                        )}
+                      </IconButton>
+                    </div>
+                  )}
                   {navContext === "admin" ? (
                     <AdminSideNav
                       isTrainingInstallation={isTrainingInstallation}
