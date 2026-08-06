@@ -33,6 +33,7 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
     @Before
     public void init() throws Exception {
         executeDataSetWithStateManagement("testdata/result-calculation-integration-test.xml");
+        resyncSequence("result_calculation_seq", "clinlims.result_calculation");
         seedTestOperations();
     }
 
@@ -84,6 +85,47 @@ public class ResultCalculationServiceTest extends BaseWebContextSensitiveTest {
     @Test
     public void getCount_shouldReturnFourMatchingDataset() {
         Assert.assertEquals(Integer.valueOf(4), resultCalculationService.getCount());
+    }
+
+    @Test
+    public void insert_shouldPersistAndIncrementCount() {
+        Patient patient = patientService.get("1");
+        Calculation calculation = testCalculationService.get(2);
+
+        ResultCalculation rc = new ResultCalculation();
+        rc.setPatient(patient);
+        rc.setCalculation(calculation);
+        rc.setSysUserId(TEST_SYS_USER_ID);
+
+        Integer newId = resultCalculationService.insert(rc);
+        ResultCalculation persisted = resultCalculationService.get(newId);
+
+        Assert.assertEquals(newId, persisted.getId());
+        Assert.assertEquals("1", persisted.getPatient().getId());
+        Assert.assertEquals(Integer.valueOf(2), persisted.getCalculation().getId());
+        Assert.assertEquals(Integer.valueOf(5), resultCalculationService.getCount());
+    }
+
+    @Test
+    public void insert_newRowWithTestShouldBeReturnedBySubsequentQuery() {
+        Patient patient = patientService.get("2");
+        Calculation calculation = testCalculationService.get(2);
+
+        int before = resultCalculationService.getResultCalculationByPatientAndCalculation(patient, calculation).size();
+        Assert.assertEquals(0, before);
+
+        ResultCalculation rc = new ResultCalculation();
+        rc.setPatient(patient);
+        rc.setCalculation(calculation);
+        rc.setSysUserId(TEST_SYS_USER_ID);
+        resultCalculationService.insert(rc);
+
+        List<ResultCalculation> after = resultCalculationService.getResultCalculationByPatientAndCalculation(patient,
+                calculation);
+        Assert.assertEquals(1, after.size());
+        Assert.assertEquals("2", after.get(0).getPatient().getId());
+        Assert.assertEquals(Integer.valueOf(2), after.get(0).getCalculation().getId());
+        Assert.assertEquals(Integer.valueOf(5), resultCalculationService.getCount());
     }
 
     @Test
