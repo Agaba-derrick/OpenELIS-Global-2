@@ -50,6 +50,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
                 "result", "system_user" });
     }
 
+    @Before
     public void setUp() throws Exception {
         executeDataSetWithStateManagement("testdata/referral-set.xml");
     }
