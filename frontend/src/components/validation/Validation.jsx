@@ -7,10 +7,7 @@ import {
   Form,
   Grid,
   Pagination,
-  Select,
-  SelectItem,
   TextArea,
-  TextInput,
 } from "@carbon/react";
 import { Copy, Launch } from "@carbon/icons-react";
 import DataTable from "react-data-table-component";
@@ -19,7 +16,6 @@ import ValidationSearchFormValues from "../formModel/innitialValues/ValidationSe
 import { NotificationKinds } from "../common/CustomNotification";
 import { postToOpenElisServer } from "../utils/Utils";
 import { NotificationContext } from "../layout/Layout";
-import { getFromOpenElisServer } from "../utils/Utils";
 import { ConfigurationContext } from "../layout/Layout";
 import { convertAlphaNumLabNumForDisplay } from "../utils/Utils";
 import { jpSet } from "../utils/JsonPath";
@@ -86,7 +82,7 @@ const Validation = (props) => {
     },
     {
       id: "save",
-      name: intl.formatMessage({ id: "column.name.save" }),
+      name: intl.formatMessage({ id: "label.button.validate" }),
       cell: (row, index, column, id) => {
         return renderCell(row, index, column, id);
       },
@@ -262,9 +258,11 @@ const Validation = (props) => {
                 hasIconOnly
                 renderIcon={Launch}
                 iconDescription={intl.formatMessage({
-                  id: "label.validation.viewPatient",
+                  id: "order.label.modify",
                 })}
-                href={`/PatientManagement?labNumber=${encodeURIComponent(
+                tooltipPosition="right"
+                tooltipAlignment="center"
+                href={`/ModifyOrder?accessionNumber=${encodeURIComponent(
                   row.accessionNumber,
                 )}`}
                 target="_blank"
