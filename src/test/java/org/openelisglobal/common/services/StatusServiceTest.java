@@ -1,10 +1,13 @@
 package org.openelisglobal.common.services;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
+import org.openelisglobal.analysis.valueholder.Analysis;
 import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.services.StatusService.ExternalOrderStatus;
 import org.openelisglobal.common.services.StatusService.OrderStatus;
@@ -15,6 +18,7 @@ import org.openelisglobal.observationhistory.valueholder.ObservationHistory;
 import org.openelisglobal.patient.valueholder.Patient;
 import org.openelisglobal.sample.valueholder.Sample;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.util.ReflectionTestUtils;
 
 public class StatusServiceTest extends BaseWebContextSensitiveTest {
 
@@ -55,7 +59,7 @@ public class StatusServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
-    public void testGetStatusName_shouldReturnLocalizedNames() {
+    public void testGetStatusName_shouldReturnConfiguredNamesWhenNotLocalized() {
         Assert.assertEquals("Test Entered", statusService.getStatusName(OrderStatus.Entered));
         Assert.assertEquals("Finalized", statusService.getStatusName(AnalysisStatus.Finalized));
         Assert.assertEquals("SampleEntered", statusService.getStatusName(SampleStatus.Entered));
@@ -83,12 +87,10 @@ public class StatusServiceTest extends BaseWebContextSensitiveTest {
         Assert.assertEquals("5000", statusSet.getPatientId());
         Assert.assertEquals(OrderStatus.Entered, statusSet.getSampleStatus());
 
-        java.util.Map<org.openelisglobal.analysis.valueholder.Analysis, AnalysisStatus> analysisMap = statusSet
-                .getAnalysisStatus();
+        Map<Analysis, AnalysisStatus> analysisMap = statusSet.getAnalysisStatus();
         Assert.assertEquals(1, analysisMap.size());
 
-        java.util.Map.Entry<org.openelisglobal.analysis.valueholder.Analysis, AnalysisStatus> entry = analysisMap
-                .entrySet().iterator().next();
+        Map.Entry<Analysis, AnalysisStatus> entry = analysisMap.entrySet().iterator().next();
         Assert.assertEquals("9000", entry.getKey().getId());
         Assert.assertEquals(AnalysisStatus.Finalized, entry.getValue());
     }
@@ -101,12 +103,10 @@ public class StatusServiceTest extends BaseWebContextSensitiveTest {
         Assert.assertEquals("5000", statusSet.getPatientId());
         Assert.assertEquals(OrderStatus.Entered, statusSet.getSampleStatus());
 
-        java.util.Map<org.openelisglobal.analysis.valueholder.Analysis, AnalysisStatus> analysisMap = statusSet
-                .getAnalysisStatus();
+        Map<Analysis, AnalysisStatus> analysisMap = statusSet.getAnalysisStatus();
         Assert.assertEquals(1, analysisMap.size());
 
-        java.util.Map.Entry<org.openelisglobal.analysis.valueholder.Analysis, AnalysisStatus> entry = analysisMap
-                .entrySet().iterator().next();
+        Map.Entry<Analysis, AnalysisStatus> entry = analysisMap.entrySet().iterator().next();
         Assert.assertEquals("9000", entry.getKey().getId());
         Assert.assertEquals(AnalysisStatus.Finalized, entry.getValue());
     }
@@ -163,9 +163,15 @@ public class StatusServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
-    public void testRefreshCache_shouldRebuildMapsWithoutError() {
-        // Just verify it runs and the cache still functions
+    public void testRefreshCache_shouldRebuildMapsAfterClear() {
+        // Clear the cache to ensure refreshCache actually rebuilds it
+        ReflectionTestUtils.setField(statusService, "orderStatusToObjectMap", new HashMap<>());
+        ReflectionTestUtils.setField(statusService, "idToOrderStatusMap", new HashMap<>());
+
+        Assert.assertNull(statusService.getStatusNameFromId("101"));
+
         statusService.refreshCache();
-        Assert.assertEquals("101", statusService.getStatusID(OrderStatus.Entered));
+
+        Assert.assertEquals("Test Entered", statusService.getStatusNameFromId("101"));
     }
 }
