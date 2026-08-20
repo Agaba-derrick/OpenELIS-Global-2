@@ -95,7 +95,15 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
      * {@code nextval()} returns {@code 4}) as it does for every sequence in the
      * schema on a fresh test DB.
      */
-    private static final String[] PROTECTED_SEED_TABLES = { "reference_tables", "requester_type" };
+    // label_preset is protected so the Liquibase-seeded system presets (Order
+    // Label,
+    // Specimen Label, Block Label, Slide Label, Freezer Label) — and in particular
+    // the is_universal=true flag backfilled by changeset 032 on Specimen Label —
+    // survive fixture loads by other test classes. Without this guard, any
+    // executeDataSetWithStateManagement call that doesn't mention label_preset will
+    // TRUNCATE the table and wipe the seeded rows, causing
+    // OrderEntryLabelRequestServiceAggregationTest to fail order-dependently.
+    private static final String[] PROTECTED_SEED_TABLES = { "reference_tables", "requester_type", "label_preset" };
 
     /**
      * Default sys_user_id for audit-emitting service calls in tests. Matches the
