@@ -1,7 +1,6 @@
 package org.openelisglobal.sampleitem.controller;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -13,6 +12,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -75,7 +75,7 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
     }
 
     @Test
-    public void searchByAccessionNumber_shouldReturnSampleItems() throws Exception {
+    public void searchByAccessionNumber_shouldReturnExactlyTwoSampleItems() throws Exception {
         MvcResult result = mockMvc
                 .perform(get(BASE_PATH + "/search").param("accessionNumber", ACCESSION).session(session))
                 .andExpect(status().isOk()).andExpect(content().contentType(MediaType.APPLICATION_JSON)).andReturn();
@@ -84,31 +84,28 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
                 SearchSamplesResponse.class);
 
         assertEquals(ACCESSION, response.getAccessionNumber());
-        assertEquals("Total count should be exactly 2", 2, response.getTotalCount());
-        assertEquals("Should return exactly 2 sample items", 2, response.getSampleItems().size());
-        assertEquals("External ID of first item should match", "SM-TEST-001-1",
-                response.getSampleItems().get(0).getExternalId());
-        assertEquals("External ID of second item should match", "SM-TEST-001-2",
-                response.getSampleItems().get(1).getExternalId());
+        assertEquals(2, response.getTotalCount());
+        assertEquals(2, response.getSampleItems().size());
+        assertEquals("SM-TEST-001-1", response.getSampleItems().get(0).getExternalId());
+        assertEquals("SM-TEST-001-2", response.getSampleItems().get(1).getExternalId());
     }
 
     @Test
-    public void searchByAccessionNumber_unknownAccession_returnsEmpty() throws Exception {
+    public void searchByAccessionNumber_unknownAccession_returnsEmptyList() throws Exception {
         MvcResult result = mockMvc
-                .perform(get(BASE_PATH + "/search").param("accessionNumber", "UNKNOWN").session(session))
+                .perform(get(BASE_PATH + "/search").param("accessionNumber", "UNKNOWN-999").session(session))
                 .andExpect(status().isOk()).andReturn();
 
         SearchSamplesResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
                 SearchSamplesResponse.class);
 
-        assertEquals("UNKNOWN", response.getAccessionNumber());
-        assertNotNull(response.getSampleItems());
-        assertEquals(0, response.getSampleItems().size());
+        assertEquals("UNKNOWN-999", response.getAccessionNumber());
+        assertEquals(Collections.emptyList(), response.getSampleItems());
         assertEquals(0, response.getTotalCount());
     }
 
     @Test
-    public void searchByAccessionNumber_blankAccessionNumber_returnsEmpty200() throws Exception {
+    public void searchByAccessionNumber_blankAccessionNumber_returnsEmptyList() throws Exception {
         MvcResult result = mockMvc.perform(get(BASE_PATH + "/search").param("accessionNumber", "").session(session))
                 .andExpect(status().isOk()).andReturn();
 
@@ -116,12 +113,12 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
                 SearchSamplesResponse.class);
 
         assertEquals("", response.getAccessionNumber());
-        assertEquals(0, response.getSampleItems().size());
+        assertEquals(Collections.emptyList(), response.getSampleItems());
         assertEquals(0, response.getTotalCount());
     }
 
     @Test
-    public void createAliquot_shouldCreateChildSampleItem() throws Exception {
+    public void createAliquot_shouldCreateChildSampleItemWithCorrectQuantities() throws Exception {
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("10001");
         form.setQuantityToTransfer(new BigDecimal("2.5"));
@@ -136,29 +133,29 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         CreateAliquotResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
                 CreateAliquotResponse.class);
 
-        assertTrue("Aliquot external ID should use .{n} suffix",
-                response.getAliquot().getExternalId().matches("SM-TEST-001-1\\.\\d+"));
         assertEquals(1, response.getAliquotCount());
+        assertTrue("Aliquot external ID must follow SM-TEST-001-1.{n} format",
+                response.getAliquot().getExternalId().matches("SM-TEST-001-1\\.\\d+"));
 
-        // Parent remaining quantity was 10.0, we took 2.5
-        assertEquals("Parent remaining quantity should be reduced to 7.5", 7.5,
-                response.getParentUpdatedRemainingQuantity().doubleValue(), 0.001);
-        assertEquals("Aliquot quantity should be 2.5", 2.5, response.getQuantityPerAliquot().doubleValue(), 0.001);
+        assertEquals(7.5, response.getParentUpdatedRemainingQuantity().doubleValue(), 0.001);
+
+        assertEquals(2.5, response.getQuantityPerAliquot().doubleValue(), 0.001);
     }
 
     @Test
-    public void createAliquot_zeroQuantity_returns400() throws Exception {
+    public void createAliquot_zeroQuantity_returnsInvalidRequestError() throws Exception {
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("10001");
         form.setQuantityToTransfer(new BigDecimal("0"));
 
         mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.error").value("Invalid Request"))
+                .andExpect(jsonPath("$.message").value("Quantity to transfer must be greater than 0"));
     }
 
     @Test
-    public void createAliquot_invalidParentId_returns400() throws Exception {
+    public void createAliquot_invalidParentId_returnsInvalidRequestError() throws Exception {
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("99999");
         form.setQuantityToTransfer(new BigDecimal("1.0"));
@@ -166,11 +163,12 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
 
         mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.error").value("Invalid Request"))
+                .andExpect(jsonPath("$.message").value("Parent sample item not found: 99999"));
     }
 
     @Test
-    public void addTestsToSamples_shouldLinkTestsToSampleItem() throws Exception {
+    public void addTestsToSamples_shouldLinkTestToSampleItemAndReportSuccess() throws Exception {
         AddTestsForm form = new AddTestsForm();
         form.setSampleItemIds(Arrays.asList("10001"));
         form.setTestIds(Arrays.asList("2"));
@@ -183,16 +181,17 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         AddTestsResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
                 AddTestsResponse.class);
 
-        assertEquals("Should successfully add exactly 1 test", 1, response.getSuccessCount());
+        assertEquals(1, response.getSuccessCount());
         assertEquals(1, response.getResults().size());
-        assertTrue(response.getResults().get(0).isSuccess());
+        assertEquals(true, response.getResults().get(0).isSuccess());
         assertEquals("10001", response.getResults().get(0).getSampleItemId());
-        assertEquals("2", response.getResults().get(0).getAddedTestIds().get(0));
-        assertTrue(response.getResults().get(0).getSkippedTestIds().isEmpty());
+        assertEquals(Arrays.asList("2"), response.getResults().get(0).getAddedTestIds());
+        assertEquals(Collections.emptyList(), response.getResults().get(0).getSkippedTestIds());
     }
 
     @Test
-    public void addTestsToSamples_duplicateTest_isSkipped() throws Exception {
+    public void addTestsToSamples_duplicateTest_isSkippedAndReportedCorrectly() throws Exception {
+        // Sample item 10002 already has test 1 attached (via analysis fixture)
         AddTestsForm form = new AddTestsForm();
         form.setSampleItemIds(Arrays.asList("10002"));
         form.setTestIds(Arrays.asList("1"));
@@ -207,25 +206,26 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
 
         assertEquals(0, response.getSuccessCount());
         assertEquals(1, response.getResults().size());
-        assertTrue(response.getResults().get(0).isSuccess());
+        assertEquals(true, response.getResults().get(0).isSuccess());
         assertEquals("10002", response.getResults().get(0).getSampleItemId());
-        assertTrue(response.getResults().get(0).getAddedTestIds().isEmpty());
-        assertEquals("1", response.getResults().get(0).getSkippedTestIds().get(0));
+        assertEquals(Collections.emptyList(), response.getResults().get(0).getAddedTestIds());
+        assertEquals(Arrays.asList("1"), response.getResults().get(0).getSkippedTestIds());
     }
 
     @Test
-    public void addTestsToSamples_invalidSampleItemId_returns400() throws Exception {
+    public void addTestsToSamples_invalidSampleItemId_returnsInvalidRequestError() throws Exception {
         AddTestsForm form = new AddTestsForm();
         form.setSampleItemIds(Arrays.asList("99999"));
         form.setTestIds(Arrays.asList("1"));
 
         mockMvc.perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.error").value("Invalid Request"))
+                .andExpect(jsonPath("$.message").value("Sample item not found: 99999"));
     }
 
     @Test
-    public void cancelTest_shouldSetAnalysisStatusToCancelled() throws Exception {
+    public void cancelTest_shouldTransitionAnalysisStatusToCancelled() throws Exception {
         CancelTestForm form = new CancelTestForm();
         form.setAnalysisId("10001");
         form.setSampleItemId("10001");
@@ -238,7 +238,7 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         CancelTestResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
                 CancelTestResponse.class);
 
-        assertTrue(response.isSuccess());
+        assertEquals(true, response.isSuccess());
         assertEquals("10001", response.getAnalysisId());
 
         Analysis analysis = analysisService.getAnalysisById("10001");
@@ -247,15 +247,15 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
     }
 
     @Test
-    public void cancelTest_completedAnalysis_returns400() throws Exception {
-        // Analysis 10002 is Finalized on sample item 10002
+    public void cancelTest_finalizedAnalysis_returnsInvalidStateError() throws Exception {
         CancelTestForm form = new CancelTestForm();
         form.setAnalysisId("10002");
         form.setSampleItemId("10002");
 
         mockMvc.perform(post(BASE_PATH + "/cancel-test").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").exists());
+                .andExpect(jsonPath("$.error").value("Invalid State"))
+                .andExpect(jsonPath("$.message").value("Cannot cancel test: analysis is already Finalized"));
     }
 
     private MockHttpSession buildAuthenticatedSession() {
