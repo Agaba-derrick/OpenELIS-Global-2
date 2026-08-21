@@ -1,7 +1,6 @@
 package org.openelisglobal.sampleitem.controller;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -87,8 +86,10 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         assertEquals(ACCESSION, response.getAccessionNumber());
         assertEquals("Total count should be exactly 2", 2, response.getTotalCount());
         assertEquals("Should return exactly 2 sample items", 2, response.getSampleItems().size());
-        assertEquals("External ID of first item should match", "SM-TEST-001-1", response.getSampleItems().get(0).getExternalId());
-        assertEquals("External ID of second item should match", "SM-TEST-001-2", response.getSampleItems().get(1).getExternalId());
+        assertEquals("External ID of first item should match", "SM-TEST-001-1",
+                response.getSampleItems().get(0).getExternalId());
+        assertEquals("External ID of second item should match", "SM-TEST-001-2",
+                response.getSampleItems().get(1).getExternalId());
     }
 
     @Test
@@ -110,7 +111,7 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
     public void searchByAccessionNumber_blankAccessionNumber_returnsEmpty200() throws Exception {
         MvcResult result = mockMvc.perform(get(BASE_PATH + "/search").param("accessionNumber", "").session(session))
                 .andExpect(status().isOk()).andReturn();
-                
+
         SearchSamplesResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
                 SearchSamplesResponse.class);
 
@@ -128,8 +129,8 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setNotes("Test Aliquot");
 
         MvcResult result = mockMvc
-                .perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                        .session(session))
+                .perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(form)).session(session))
                 .andExpect(status().isCreated()).andReturn();
 
         CreateAliquotResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
@@ -138,12 +139,11 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         assertTrue("Aliquot external ID should use .{n} suffix",
                 response.getAliquot().getExternalId().matches("SM-TEST-001-1\\.\\d+"));
         assertEquals(1, response.getAliquotCount());
-        
+
         // Parent remaining quantity was 10.0, we took 2.5
-        assertEquals("Parent remaining quantity should be reduced to 7.5", 
-                7.5, response.getParentUpdatedRemainingQuantity().doubleValue(), 0.001);
-        assertEquals("Aliquot quantity should be 2.5", 
-                2.5, response.getQuantityPerAliquot().doubleValue(), 0.001);
+        assertEquals("Parent remaining quantity should be reduced to 7.5", 7.5,
+                response.getParentUpdatedRemainingQuantity().doubleValue(), 0.001);
+        assertEquals("Aliquot quantity should be 2.5", 2.5, response.getQuantityPerAliquot().doubleValue(), 0.001);
     }
 
     @Test
@@ -151,20 +151,22 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("10001");
         form.setQuantityToTransfer(new BigDecimal("0"));
-        
-        mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                .session(session)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+
+        mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
     }
-    
+
     @Test
     public void createAliquot_invalidParentId_returns400() throws Exception {
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("99999");
         form.setQuantityToTransfer(new BigDecimal("1.0"));
         form.setNumberOfAliquots(1);
-        
-        mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                .session(session)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+
+        mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
     }
 
     @Test
@@ -174,8 +176,8 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setTestIds(Arrays.asList("2"));
 
         MvcResult result = mockMvc
-                .perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                        .session(session))
+                .perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(form)).session(session))
                 .andExpect(status().isOk()).andReturn();
 
         AddTestsResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
@@ -196,8 +198,8 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setTestIds(Arrays.asList("1"));
 
         MvcResult result = mockMvc
-                .perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                        .session(session))
+                .perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(form)).session(session))
                 .andExpect(status().isOk()).andReturn();
 
         AddTestsResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
@@ -217,8 +219,9 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setSampleItemIds(Arrays.asList("99999"));
         form.setTestIds(Arrays.asList("1"));
 
-        mockMvc.perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                .session(session)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
     }
 
     @Test
@@ -227,10 +230,9 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setAnalysisId("10001");
         form.setSampleItemId("10001");
 
-        MvcResult result = mockMvc.perform(post(BASE_PATH + "/cancel-test")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(form))
-                .session(session))
+        MvcResult result = mockMvc
+                .perform(post(BASE_PATH + "/cancel-test").contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(form)).session(session))
                 .andExpect(status().isOk()).andReturn();
 
         CancelTestResponse response = objectMapper.readValue(result.getResponse().getContentAsString(),
@@ -251,8 +253,9 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
         form.setAnalysisId("10002");
         form.setSampleItemId("10002");
 
-        mockMvc.perform(post(BASE_PATH + "/cancel-test").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(form))
-                .session(session)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").exists());
+        mockMvc.perform(post(BASE_PATH + "/cancel-test").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").exists());
     }
 
     private MockHttpSession buildAuthenticatedSession() {
