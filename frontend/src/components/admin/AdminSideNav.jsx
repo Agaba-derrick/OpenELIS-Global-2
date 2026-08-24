@@ -26,6 +26,8 @@ import {
   ConnectionSignal,
   Calendar,
   TrashCan,
+  Sprout,
+  ListChecked,
 } from "@carbon/icons-react";
 import {
   SideNavItems,
@@ -36,6 +38,7 @@ import {
 import { V1_SECTIONS } from "./testCatalog/sectionConfig";
 import { SAMPLE_TYPE_SECTIONS } from "./sampleTypeManagement/sectionConfig";
 import { PANEL_SECTIONS } from "./testCatalog/panelSectionConfig";
+import { LAB_UNIT_SECTIONS } from "./labUnitManagement/sectionConfig";
 
 const getAdminBasePath = (pathname) =>
   pathname.startsWith("/admin") ? "/admin" : "/MasterListsPage";
@@ -120,6 +123,13 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
   const inSampleTypesContext =
     !!editorSampleTypeId || /\/SampleTypeEditor(\/|$)/.test(location.pathname);
 
+  // Lab Unit editor context: /LabUnitManagement/:labUnitId/:section?
+  // The plain list URL (no trailing id) leaves this null.
+  const labUnitEditorMatch = location.pathname.match(
+    /\/LabUnitManagement\/([^/]+)/,
+  );
+  const editorLabUnitId = labUnitEditorMatch ? labUnitEditorMatch[1] : null;
+
   // Keyed by id so the label never shows a prior test's name while the next loads.
   const [editorTest, setEditorTest] = useState({ id: null, name: null });
   useEffect(() => {
@@ -179,6 +189,39 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
   const editorSampleTypeName =
     editorSampleType.id === editorSampleTypeId ? editorSampleType.name : null;
 
+  // Lab unit name for the sidenav helper caption. "new" is create-in-place.
+  const [editorLabUnit, setEditorLabUnit] = useState({ id: null, name: null });
+  useEffect(() => {
+    if (!editorLabUnitId || editorLabUnitId === "new") {
+      return undefined;
+    }
+    const controller = new AbortController();
+    getFromOpenElisServer(
+      "/rest/lab-units-management",
+      (res) => {
+        const list =
+          res && res.success && Array.isArray(res.data)
+            ? res.data
+            : Array.isArray(res)
+              ? res
+              : [];
+        const match = list.find(
+          (item) => String(item.id) === String(editorLabUnitId),
+        );
+        setEditorLabUnit({
+          id: editorLabUnitId,
+          name: match ? match.name || match.description || null : null,
+        });
+      },
+      controller.signal,
+    );
+    return () => {
+      controller.abort();
+    };
+  }, [editorLabUnitId]);
+  const editorLabUnitName =
+    editorLabUnit.id === editorLabUnitId ? editorLabUnit.name : null;
+
   // Any Test Catalog Management surface (list or editor, either entity). The
   // menu stays mounted (same key) and expanded across every in-area
   // navigation, so clicking "All Sample Types"/"All Tests" from an editor
@@ -187,7 +230,10 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
     !!editorTestId ||
     !!editorSampleTypeId ||
     !!editorPanelId ||
-    /\/(TestCatalogList|SampleTypeEditor)(\/|$)/.test(location.pathname);
+    !!editorLabUnitId ||
+    /\/(TestCatalogList|SampleTypeEditor|LabUnitManagement)(\/|$)/.test(
+      location.pathname,
+    );
 
   // Panel name for the sidenav helper caption. "new" is create-in-place.
   const [editorPanel, setEditorPanel] = useState({ id: null, name: null });
@@ -317,7 +363,53 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
         >
           <FormattedMessage id="label.testCatalog.entity.panels" />
         </SideNavMenuItem>
-        {inPanelsContext ? (
+        {/* OGC-189 — Lab Units is a peer entity of Tests / Panels / Sample
+            Types in this shell (per the v2.0 FRS direction). */}
+        <SideNavMenuItem
+          data-cy="labUnitManagement"
+          {...navProps(`${path}/LabUnitManagement`)}
+        >
+          <FormattedMessage
+            id={
+              editorLabUnitId
+                ? "sidenav.label.admin.labUnit.backToList"
+                : "sidenav.label.admin.labUnitManagement"
+            }
+          />
+        </SideNavMenuItem>
+        {editorLabUnitId ? (
+          <>
+            {editorLabUnitId === "new"
+              ? sectionsCaption(
+                  "labUnitSectionsHelp",
+                  "labUnitSectionsContext",
+                  "sidenav.label.admin.labUnit.addingNew",
+                )
+              : editorLabUnitName
+                ? sectionsCaption(
+                    "labUnitSectionsHelp",
+                    "labUnitSectionsContext",
+                    "sidenav.label.admin.labUnit.editing",
+                    { name: editorLabUnitName },
+                  )
+                : sectionsCaption(
+                    "labUnitSectionsHelp",
+                    "labUnitSectionsContext",
+                    "sidenav.label.admin.labUnit.editingGeneric",
+                  )}
+            {LAB_UNIT_SECTIONS.map((sectionKey) => (
+              <SideNavMenuItem
+                key={sectionKey}
+                data-cy={`labUnit-section-${sectionKey}`}
+                {...navProps(
+                  `${path}/LabUnitManagement/${editorLabUnitId}/${sectionKey}`,
+                )}
+              >
+                <FormattedMessage id={`label.labUnit.section.${sectionKey}`} />
+              </SideNavMenuItem>
+            ))}
+          </>
+        ) : inPanelsContext ? (
           <>
             {/* OGC-224 — panel context: caption + the panel's own sections as
                 SideNav submenu items (FRS: submenus, never tabs). With no panel
@@ -511,6 +603,51 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
       >
         <FormattedMessage id="sidenav.label.admin.Listplugin" />
       </SideNavLink>
+      <SideNavMenu
+        data-cy="vectorSurveillance"
+        renderIcon={Sprout}
+        title={intl.formatMessage({
+          id: "sidenav.label.admin.vectorSurveillance",
+          defaultMessage: "Vector Surveillance",
+        })}
+      >
+        <SideNavMenuItem
+          data-cy="vectorSpecies"
+          {...navProps(`${path}/vectorSurveillanceSetup/species`)}
+        >
+          <FormattedMessage
+            id="vector.admin.species"
+            defaultMessage="Species"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="vectorTrapTypes"
+          {...navProps(`${path}/vectorSurveillanceSetup/trap-types`)}
+        >
+          <FormattedMessage
+            id="vector.admin.trapTypes"
+            defaultMessage="Trap Types"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="vectorSamplingSites"
+          {...navProps(`${path}/vectorSurveillanceSetup/sampling-sites`)}
+        >
+          <FormattedMessage
+            id="vector.admin.samplingSites"
+            defaultMessage="Sampling Sites"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="vectorManualEntryFields"
+          {...navProps(`${path}/vectorSurveillanceSetup/manual-entry-fields`)}
+        >
+          <FormattedMessage
+            id="vectorReport.fieldMap.title"
+            defaultMessage="Manual Entry Field Map"
+          />
+        </SideNavMenuItem>
+      </SideNavMenu>
       <SideNavLink
         data-cy="orgMgmnt"
         renderIcon={ContainerSoftware}
@@ -645,6 +782,52 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
           {...navProps(`${path}/ValidationConfigurationMenu`)}
         >
           <FormattedMessage id="sidenav.label.admin.formEntry.validationconfig" />
+        </SideNavMenuItem>
+      </SideNavMenu>
+
+      <SideNavMenu
+        data-cy="sampleAcceptanceChecklist"
+        renderIcon={ListChecked}
+        title={intl.formatMessage({
+          id: "sampleAcceptance.title",
+          defaultMessage: "Sample Acceptance Checklist",
+        })}
+      >
+        <SideNavMenuItem
+          data-cy="sampleAcceptanceAll"
+          {...navProps(`${path}/SampleAcceptanceChecklist/all`)}
+        >
+          <FormattedMessage
+            id="sampleAcceptance.domain.all"
+            defaultMessage="All domains"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="sampleAcceptanceClinical"
+          {...navProps(`${path}/SampleAcceptanceChecklist/clinical`)}
+        >
+          <FormattedMessage
+            id="sampleAcceptance.domain.clinical"
+            defaultMessage="Clinical"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="sampleAcceptanceEnvironmental"
+          {...navProps(`${path}/SampleAcceptanceChecklist/environmental`)}
+        >
+          <FormattedMessage
+            id="sampleAcceptance.domain.environmental"
+            defaultMessage="Environmental"
+          />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="sampleAcceptanceVector"
+          {...navProps(`${path}/SampleAcceptanceChecklist/vector`)}
+        >
+          <FormattedMessage
+            id="sampleAcceptance.domain.vector"
+            defaultMessage="Vector"
+          />
         </SideNavMenuItem>
       </SideNavMenu>
 
