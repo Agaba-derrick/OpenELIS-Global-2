@@ -38,5 +38,8 @@ DBUnit, and the 5-layer architecture standards.
 ## Reference
 
 - [Overview](reference/overview.md) - Detailed infrastructure and patterns.
-- [Template](templates/integration-test-template.java.template) - Boilerplate for new
-  tests.
+- [Template](templates/integration-test-template.java.template) - Boilerplate
+  for new tests.
+- [Example request](examples/menu-service/request.md) with its complete
+  [generated Java test](examples/menu-service/GeneratedMenuServiceIntegrationTest.java),
+  grounded in the OpenELIS `MenuService` and its existing DBUnit fixture.
