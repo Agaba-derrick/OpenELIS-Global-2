@@ -3,8 +3,7 @@
     required seed data: localizations, locales, an inactive test_section (so
     we can assert it gets activated), and a type_of_sample. -->
 <dataset>
-    <!-- localization entries (lastupdated required to be treated as detached
-        by Hibernate) -->
+    <!-- localization entries (include lastupdated to match the schema/mappings used in integration tests) -->
     <localization id="1" description="whole blood"
         lastupdated="2023-11-01 12:00:00" />
     <localization id="2" description="Urine"
