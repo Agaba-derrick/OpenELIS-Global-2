@@ -2,13 +2,18 @@
 
 ## Description
 
-Generates a new backend integration test for a given service or controller,
-following the OpenELIS Global 2 standards.
+Generates a new service-layer integration test following the OpenELIS Global 2
+standards.
+
+## User Input
+
+```text
+$ARGUMENTS
+```
 
 ## Parameters
 
-- `service`: The name of the service or controller to test (e.g.,
-  `PatientService`).
+- `service`: The service to test (for example, `PatientService`).
 - `module`: The module package name (e.g., `patient`).
 
 ## Implementation Logic
@@ -16,9 +21,13 @@ following the OpenELIS Global 2 standards.
 1. **Locate the target class** to understand its dependencies and methods.
 2. **Identify dependencies** that need to be mocked (external) vs. autowired
    (internal).
-3. **Generate the test class** using the `integration-test-template.java.template`.
-4. **Draft a DBUnit XML dataset** structure required for the test.
-5. **Provide the Maven command** to run the specific test.
+3. **Generate the test class** using
+   `.ai/skills/backend-integration-testing/templates/integration-test-template.java.template`.
+   Replace every placeholder and the failing sentinel with working code.
+4. **Create or reuse a DBUnit XML dataset** under `src/test/resources/testdata/`
+   and load it in `@Before`.
+5. **Run the specific test** with `mvn test -Dtest=<GeneratedIntegrationTest>`
+   and report the result.
 
 ## Example Usage
 

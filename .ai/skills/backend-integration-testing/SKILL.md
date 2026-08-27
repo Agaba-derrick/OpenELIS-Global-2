@@ -17,7 +17,7 @@ DBUnit, and the 5-layer architecture standards.
 
 ## Trigger
 
-- When a user asks to "write a test" for a backend service or controller.
+- When a user asks to "write a test" for a backend service.
 - When a user asks "how to run integration tests."
 - When refactoring backend logic that requires regression testing.
 
@@ -28,7 +28,9 @@ DBUnit, and the 5-layer architecture standards.
    `@Before` block.
 3. **Always use real services/DAOs** where possible; mock only external systems
    (Odoo, FHIR, Mail).
-4. **Follow the Gold Standard**: Use `MenuServiceTest.java` as the blueprint.
+4. **Follow the verified example**: Use
+   `examples/menu-service/GeneratedMenuServiceIntegrationTest.java` as the
+   blueprint.
 5. **Verify with test target**: Run `mvn test -Dtest=<NewTest>` to verify the
    newly added or modified test specifically.
 6. **Harden assertions**: Avoid weak assertions like `assertNotNull` or

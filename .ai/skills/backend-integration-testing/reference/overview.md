@@ -1,8 +1,8 @@
 # OpenELIS Global 2: Backend Integration Testing Guide
 
 This document defines the mandatory patterns and infrastructure for writing and
-running backend integration tests in OpenELIS Global 2. These tests focus on the
-Service, DAO, and Controller layers using a real database container.
+running service-layer integration tests in OpenELIS Global 2. These tests call
+real services and data-access code against a temporary PostgreSQL database.
 
 ## 1. Core Technology Stack
 
@@ -11,21 +11,19 @@ Service, DAO, and Controller layers using a real database container.
 - **Testcontainers**: Spawns a PostgreSQL 14.4 container for database isolation.
 - **DBUnit**: Loads XML flat datasets for data seeding.
 - **Liquibase**: Applies schema migrations to the test container.
-- **MockMvc**: For REST controller and web layer testing.
 - **Mockito**: For mocking external dependencies (FHIR, Odoo, etc.).
 
 ## 2. Mandatory Base Classes
 
 ### `BaseWebContextSensitiveTest`
 
-All integration tests SHOULD extend this class. It provides:
+All service integration tests MUST extend this class. It provides:
 
 - Full Spring Web context loading.
 - Database connection management via Testcontainers.
 - `executeDataSetWithStateManagement(String xmlPath)`: Truncates relevant tables
   and loads XML data.
 - Default authentication: `ROLE_ADMIN` and `ROLE_RESULTS`.
-- `mockMvc` instance for controller testing.
 
 ## 3. Configuration Classes
 
@@ -40,33 +38,10 @@ Handles the infrastructure layer:
 
 ### `AppTestConfig`
 
-Handles the application context and isolation:
+Loads the application services and test-only mocks for external systems so the
+test cannot make network calls.
 
-- **Selective Component Scanning**: Uses `excludeFilters` (Regex) to prevent
-  automatic loading of large controller packages. This avoids circular
-  dependencies and satisfies the "Traditional Spring MVC" singleton
-  requirements.
-- **Manual Bean Wiring**: Controllers are often manually registered as `@Bean`s
-  at the bottom of this file. If you are testing a controller, you must ensure
-  it is either scanned or explicitly defined here.
-- **Infrastructure Mocks**: Provides `@Profile("test")` mocks for external
-  services to ensure complete isolation from the network.
-
-## 4. Bean Isolation & Configuration Standards
-
-To maintain test stability and performance, we follow a "Selective Manual
-Wiring" pattern:
-
-### A. The "Exclude All" Strategy
-
-We intentionally exclude entire controller packages from the base component
-scan. This prevents Spring from trying to instantiate the entire web layer for
-every test.
-
-- **When to add a Bean**: If your test requires a class that is in an excluded
-  package, you must manually add a `@Bean` for it in `AppTestConfig`.
-
-### B. External Service Isolation
+## 4. External System Isolation
 
 The following services are **MANDATORY** to mock in `AppTestConfig` to prevent
 external side effects:
@@ -79,7 +54,7 @@ external side effects:
 - **Security**: `TruststoreService`, `TextEncryptor` (Prevents real
   certificate/encryption logic).
 
-### C. The `test` Profile
+### The `test` Profile
 
 All test-specific mocks must be annotated with `@Profile("test")`. This ensures
 they never accidentally leak into production code.
@@ -91,42 +66,10 @@ they never accidentally leak into production code.
 Naming convention: `*IntegrationTest.java` or `*Test.java` (if it extends the
 base class).
 
-```java
-package org.openelisglobal.menu;
-
-import java.util.List;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.openelisglobal.BaseWebContextSensitiveTest;
-import org.openelisglobal.menu.service.MenuService;
-import org.openelisglobal.menu.valueholder.Menu;
-import org.springframework.beans.factory.annotation.Autowired;
-
-public class MenuServiceTest extends BaseWebContextSensitiveTest {
-
-    @Autowired
-    private MenuService menuService;
-
-    @Before
-    public void init() throws Exception {
-        // Load data specific to this test suite
-        executeDataSetWithStateManagement("testdata/menu.xml");
-    }
-
-    @Test
-    public void getAllActiveMenus_shouldReturnOnlyActiveMenus() {
-        List<Menu> activeMenus = menuService.getAllActiveMenus();
-
-        // Avoid weak assertions like assertNotNull or assertFalse(isEmpty)
-        // Assert exact size and exact values to guarantee correct state
-        Assert.assertEquals(2, activeMenus.size());
-        Assert.assertEquals("Active Menu A", activeMenus.get(0).getName());
-        Assert.assertEquals("Active Menu B", activeMenus.get(1).getName());
-        Assert.assertTrue(activeMenus.stream().allMatch(Menu::getIsActive));
-    }
-}
-```
+Use the bundled
+[MenuService example](../examples/menu-service/GeneratedMenuServiceIntegrationTest.java)
+as the working reference. It compiles against the OpenELIS classes, loads the
+existing `testdata/menu.xml` fixture, and checks the exact active menu rows.
 
 ### Step 2: Create the Dataset (XML)
 
@@ -144,8 +87,9 @@ schema prefix is handled automatically by the loader).
 
 #### Hardened Loader Invariants & Constraints:
 
-- **Never Declare `reference_tables`**: Do not declare `reference_tables` in
-  your dataset fixture (it is a protected seed table).
+- **Never declare protected seed tables**: Do not add `reference_tables`,
+  `requester_type`, or `label_preset` rows to a fixture. The loader preserves
+  the Liquibase-seeded contents of all three tables.
 - **System User ID 1**: The user `system_user` with `id=1` is a protected seed
   and is automatically re-seeded after every load.
 - **Use IDs >= 100**: Always use IDs >= 100 for rows in tables that the
@@ -190,7 +134,7 @@ these common issues:
   relationship (e.g., `sample.getAnalyses()`) outside of the Service
   transaction.
   - **Fix**: Use `JOIN FETCH` in the DAO or ensure all data is eagerly loaded by
-    the Service before it returns to the Controller/Test.
+    the Service before it returns to the test.
 - **`NoSuchTableException` (DBUnit)**: Occurs if the XML dataset references a
   table that does not exist in the database schema or is misspelled.
   - **Fix**: Verify table spelling against the database schema or JPA Entity. Do
@@ -225,91 +169,10 @@ If the schema fails to apply:
 - Check `src/main/resources/liquibase/base-changelog.xml` (loaded onto the test
   classpath via `BaseTestConfig`) for syntax errors or missing changesets.
 
-## 9. Enforcing Aggressive Assertions (Constitution V.6)
+## 9. Test Quality Rules
 
-> **Authoritative source**:
-> [`.specify/guides/testing-roadmap.md#test-quality-invariants-constitution-v6`](.specify/guides/testing-roadmap.md#test-quality-invariants-constitution-v6)
-
-Every integration test in this skill MUST satisfy the following invariants.
-Violating any of them is a blocking review finding.
-
-### Quick Reference: Weak vs. Aggressive Assertions
-
-| Weak/Prohibited Assertion             | Aggressive/Mandatory Assertion                           | Why?                                                                                 |
-| :------------------------------------ | :------------------------------------------------------- | :----------------------------------------------------------------------------------- |
-| `assertNotNull(list);`                | `assertEquals(2, list.size());`                          | Nullness or emptiness checks pass on incorrect lists containing arbitrary elements.  |
-| `assertFalse(list.isEmpty());`        | `assertEquals("expectedValue", list.get(0).getValue());` | Ensuring the exact values are mapped prevents silent data truncation/leaks.          |
-| `assertNotNull(savedEntity.getId());` | `assertEquals("custom-id-99", savedEntity.getName());`   | Having an ID generated doesn't guarantee properties were correctly persisted/mapped. |
-| `assertTrue(result);`                 | `assertEquals(ExpectedEnum.STATUS, entity.getStatus());` | Asserting specific state enums/values validates business logic correctness.          |
-
-### U1 — Inversion Test (Universal, Mandatory)
-
-Replace the function under test with a hardcoded return value. The test **MUST**
-fail. If it still passes, the test is scaffolding, not a regression guard.
-
-```java
-// ✅ GOOD — test would fail if getAllActiveMenus() returned an empty list
-Assert.assertEquals(2, activeMenus.size());
-Assert.assertEquals("Home", activeMenus.get(0).getDescription());
-
-// ❌ BAD — test passes even if getAllActiveMenus() returns List.of()
-Assert.assertNotNull(activeMenus);
-```
-
-### J1 — No Assert-on-Mock-Return
-
-`when(x).thenReturn(Y)` followed by `assertEquals(Y, result)` with no
-intervening logic tests Mockito, not your code. Assertions must verify a
-**transformation** of the mock output.
-
-```java
-// ❌ BAD
-when(menuDao.getAllActiveMenus()).thenReturn(List.of(menu));
-List<Menu> result = menuService.getAllActiveMenus();
-assertEquals(List.of(menu), result); // tautology
-
-// ✅ GOOD — verifies the service applies filtering
-when(menuDao.getAllMenus()).thenReturn(List.of(activeMenu, inactiveMenu));
-List<Menu> result = menuService.getAllActiveMenus();
-assertEquals(1, result.size());
-assertTrue(result.get(0).getIsActive());
-```
-
-### J2 — Specific-Matcher Argument Verification
-
-`verify(service).save(any())` tests nothing. Use argument matchers that
-validate the actual value passed.
-
-```java
-// ❌ BAD
-verify(menuDao).save(any());
-
-// ✅ GOOD
-verify(menuDao).save(argThat(m -> m.getDescription().equals("Home")));
-```
-
-### J3 — Auth Before Business Logic (Controller Tests)
-
-Every controller test suite **MUST** include a test verifying that
-unauthenticated requests receive `401` **before** any service method is called.
-
-```java
-@Test
-public void getMenus_unauthenticated_returns401() throws Exception {
-    mockMvc.perform(get("/rest/menu")
-            .contentType(MediaType.APPLICATION_JSON))
-            .andExpect(status().isUnauthorized());
-    verifyNoInteractions(menuService);
-}
-```
-
-### Anti-Patterns Prohibited in This Skill
-
-| Anti-Pattern | Why It's Prohibited |
-|---|---|
-| `assertNotNull(result)` as primary assertion | Passes even when logic is deleted |
-| `any()` in `verify()` without comment | Verifies the call happened, not what was passed |
-| Happy-path only | Zero negative/edge/error coverage |
-| `assertEquals(mock, result)` with no transformation | Tests Mockito, not the SUT |
-| No 401/403 test in controller suites | Auth bypass goes undetected |
-remove stale mvn clean note)
+The complete, current rules are maintained in
+[Test Quality Invariants](../../../../.specify/guides/testing-roadmap.md#test-quality-invariants-constitution-v6).
+Generated tests must follow every applicable backend and universal rule there,
+including negative and boundary cases. Do not copy a partial version of those
+rules into this skill.
