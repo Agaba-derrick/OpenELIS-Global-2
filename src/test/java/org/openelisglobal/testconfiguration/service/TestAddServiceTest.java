@@ -28,10 +28,11 @@ import org.openelisglobal.typeofsample.service.TypeOfSampleTestService;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSample;
 import org.openelisglobal.typeofsample.valueholder.TypeOfSampleTest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
 
-// Keep the class-level transaction so service-side updates are visible to the
-// test while the rollback still prevents fixture pollution from leaking across
-// cases.
+// The fixture does not reset every table written by the service. Roll back each
+// case to prevent inserted rows from leaking into other integration tests.
+@Transactional
 public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
     @Autowired
@@ -72,8 +73,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
         executeDataSetWithStateManagement("testdata/test-add-service.xml");
     }
 
-    private TestSet buildTestSet(org.openelisglobal.test.valueholder.Test test, TypeOfSample typeOfSample,
-            TestSection testSection) {
+    private TestSet buildTestSet(org.openelisglobal.test.valueholder.Test test, TypeOfSample typeOfSample) {
         TypeOfSampleTest sampleTypeTest = new TypeOfSampleTest();
         sampleTypeTest.setTypeOfSampleId(typeOfSample.getId());
 
@@ -118,7 +118,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
         org.openelisglobal.test.valueholder.Test newTest = buildTest("HIV Load Test", "20447-9", "guid-hiv-load-001",
                 section);
-        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        TestSet testSet = buildTestSet(newTest, sampleType);
 
         Localization nameLoc = nameLocalization("HIV Load Test", "Test de charge VIH");
         Localization reportingLoc = reportingLocalization("HIV Load Test Report", "Rapport de charge VIH");
@@ -156,7 +156,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
         org.openelisglobal.test.valueholder.Test newTest = buildTest("Glucose Test", "2345-7", "guid-glucose-001",
                 section);
-        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        TestSet testSet = buildTestSet(newTest, sampleType);
 
         TestResult testResult = new TestResult();
         testResult.setTestResultType("N"); // Numeric
@@ -188,7 +188,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
         org.openelisglobal.test.valueholder.Test newTest = buildTest("Hemoglobin Test", "718-7", "guid-hgb-001",
                 section);
-        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        TestSet testSet = buildTestSet(newTest, sampleType);
 
         ResultLimit limit = new ResultLimit();
         limit.setResultTypeId("1");
@@ -236,7 +236,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
         TypeOfSample sampleType = typeOfSampleService.get(SAMPLE_TYPE_ID);
         org.openelisglobal.test.valueholder.Test newTest = buildTest("No-Flip Test", "9876-5", "guid-no-flip-001",
                 section);
-        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        TestSet testSet = buildTestSet(newTest, sampleType);
         orderedTest.setSortOrder("0");
         testSet.sortedTests.add(orderedTest);
 
@@ -267,8 +267,8 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
         org.openelisglobal.test.valueholder.Test test2 = buildTest("Multi Test Beta", "88882-2", "guid-multi-002",
                 section);
 
-        TestSet set1 = buildTestSet(test1, sampleType, section);
-        TestSet set2 = buildTestSet(test2, sampleType, section);
+        TestSet set1 = buildTestSet(test1, sampleType);
+        TestSet set2 = buildTestSet(test2, sampleType);
 
         Localization nameLoc = nameLocalization("Multi Test", "Multi Test FR");
         Localization reportingLoc = reportingLocalization("Multi Report", "Multi Rapport");
@@ -312,7 +312,7 @@ public class TestAddServiceTest extends BaseWebContextSensitiveTest {
 
         org.openelisglobal.test.valueholder.Test newTest = buildTest("Panel Test", "33333-3", "guid-panel-001",
                 section);
-        TestSet testSet = buildTestSet(newTest, sampleType, section);
+        TestSet testSet = buildTestSet(newTest, sampleType);
 
         Panel panel = panelService.getPanelById("1");
         assertEquals("Fixture: Panel must start INACTIVE", "N", panel.getIsActive());
