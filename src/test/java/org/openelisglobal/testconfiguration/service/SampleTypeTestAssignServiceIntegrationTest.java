@@ -15,10 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 /**
  * Integration tests for SampleTypeTestAssignService
  *
- * Follows the OpenELIS Global 2 backend integration testing standards:
- * - Extends BaseWebContextSensitiveTest for full Spring context and
- * Testcontainers support.
- * - Uses DBUnit for data seeding.
+ * Follows the OpenELIS Global 2 backend integration testing standards: -
+ * Extends BaseWebContextSensitiveTest for full Spring context and
+ * Testcontainers support. - Uses DBUnit for data seeding.
  */
 public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSensitiveTest {
 
@@ -47,7 +46,8 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
 
         // Perform the full update: delete existing, update sample type, create new link
         sampleType1001.setLocalAbbreviation("upd_abbrev");
-        sampleTypeTestAssignService.update(sampleType1001, "2002", Arrays.asList(linkIdToDelete), "1001", true, true, null, "1");
+        sampleTypeTestAssignService.update(sampleType1001, "2002", Arrays.asList(linkIdToDelete), "1001", true, true,
+                null, "1");
 
         // Verify the old link is deleted
         List<TypeOfSampleTest> remainingLinksFor2001 = typeOfSampleTestService.getTypeOfSampleTestsForTest("2001");
@@ -55,20 +55,22 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
 
         // Verify the new link is created
         List<TypeOfSampleTest> newLinksFor2002 = typeOfSampleTestService.getTypeOfSampleTestsForTest("2002");
-        Assert.assertTrue("Should have new link", newLinksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
+        Assert.assertTrue("Should have new link",
+                newLinksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
 
         // Verify the sample type was updated
         TypeOfSample updatedSampleType = typeOfSampleService.get("1001");
-        Assert.assertEquals("Sample type abbreviation should be updated", "upd_abbrev", updatedSampleType.getLocalAbbreviation());
+        Assert.assertEquals("Sample type abbreviation should be updated", "upd_abbrev",
+                updatedSampleType.getLocalAbbreviation());
     }
 
     @Test
     public void update_ShouldDeactivateSampleType_WhenProvided() {
         TypeOfSample sampleType1001 = typeOfSampleService.get("1001");
         TypeOfSample sampleType1002 = typeOfSampleService.get("1002");
-        
+
         Assert.assertTrue(sampleType1002.getIsActive());
-        
+
         sampleType1002.setIsActive(false);
 
         // Perform assignment while deactivating another sample type
@@ -76,10 +78,11 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
 
         TypeOfSample deactivatedSampleType = typeOfSampleService.get("1002");
         Assert.assertFalse("Sample type 1002 should be deactivated", deactivatedSampleType.getIsActive());
-        
+
         // Verify assignment still happened
         List<TypeOfSampleTest> newLinksFor2002 = typeOfSampleTestService.getTypeOfSampleTestsForTest("2002");
-        Assert.assertTrue("Should have new link for 1001", newLinksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
+        Assert.assertTrue("Should have new link for 1001",
+                newLinksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
     }
 
     @Test
@@ -93,10 +96,12 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
 
         // Verify sample type was NOT updated
         TypeOfSample reloadedSampleType = typeOfSampleService.get("1001");
-        Assert.assertEquals("Sample type should not be updated", originalAbbrev, reloadedSampleType.getLocalAbbreviation());
+        Assert.assertEquals("Sample type should not be updated", originalAbbrev,
+                reloadedSampleType.getLocalAbbreviation());
 
         // Verify the new link is created
         List<TypeOfSampleTest> linksFor2002 = typeOfSampleTestService.getTypeOfSampleTestsForTest("2002");
-        Assert.assertTrue("Should have new link for 1001", linksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
+        Assert.assertTrue("Should have new link for 1001",
+                linksFor2002.stream().anyMatch(l -> "1001".equals(l.getTypeOfSampleId())));
     }
 }
