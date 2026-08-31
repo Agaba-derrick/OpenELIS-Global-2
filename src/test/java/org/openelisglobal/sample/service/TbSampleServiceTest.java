@@ -3,8 +3,11 @@ package org.openelisglobal.sample.service;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -25,10 +28,38 @@ import org.openelisglobal.sampleitem.valueholder.SampleItem;
 import org.openelisglobal.sampleorganization.service.SampleOrganizationService;
 import org.springframework.beans.factory.annotation.Autowired;
 
-public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest {
+public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
 
     private static final String DATASET = "testdata/tb-sample-service.xml";
     private static final String SYS_USER_ID = TEST_SYS_USER_ID;
+
+    private static final String SPECIMEN_NATURE_ID = "100";
+    private static final String TEST_ID = "200";
+    private static final String REFERRING_SITE_CODE = "100";
+
+    private static final String EXISTING_PATIENT_EXTERNAL_ID = "SUB-900";
+    private static final String EXISTING_SAMPLE_ACCESSION_NUMBER = "LAB-900";
+
+    private static final List<ExpectedObservation> EXPECTED_OBSERVATIONS = List.of(
+            new ExpectedObservation("100", "TbOrderReason", "Reason1"),
+            new ExpectedObservation("101", "TbDiagnosticReason", "Diag1"),
+            new ExpectedObservation("102", "TbFollowupReason", "Follow1"),
+            new ExpectedObservation("103", "TbSampleAspects", "Aspect1"),
+            new ExpectedObservation("104", "TbFollowupReasonPeriodLine1", "Period1"),
+            new ExpectedObservation("105", "TbFollowupReasonPeriodLine2", "Period2"),
+            new ExpectedObservation("106", "TbAnalysisMethod", "Method1"));
+
+    private static final class ExpectedObservation {
+        final String typeId;
+        final String typeName;
+        final String expectedValue;
+
+        ExpectedObservation(String typeId, String typeName, String expectedValue) {
+            this.typeId = typeId;
+            this.typeName = typeName;
+            this.expectedValue = expectedValue;
+        }
+    }
 
     @Autowired
     private TbSampleService tbSampleService;
@@ -79,6 +110,18 @@ public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest 
         ensureReferenceTable("SampleTbEntryForm");
     }
 
+    private String generateUniqueSubjectNumber() {
+        return "SUB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private String generateUniqueLabNumber() {
+        return "LAB-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+    }
+
+    private String today() {
+        return LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+    }
+
     private SampleTbEntryForm createBaseForm() {
         SampleTbEntryForm form = new SampleTbEntryForm();
         form.setSysUserId(SYS_USER_ID);
@@ -89,19 +132,19 @@ public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest 
         form.setPatientPhone("555-1234");
         form.setPatientAddress("123 Main St");
 
-        form.setTbSubjectNumber("NEW-SUB-001");
+        form.setTbSubjectNumber(generateUniqueSubjectNumber());
 
-        form.setLabNo("NEW-LAB-001");
-        form.setRequestDate("06/01/2025");
-        form.setReceivedDate("06/01/2025");
+        form.setLabNo(generateUniqueLabNumber());
+        form.setRequestDate(today());
+        form.setReceivedDate(today());
 
-        form.setTbSpecimenNature("100");
+        form.setTbSpecimenNature(SPECIMEN_NATURE_ID);
 
         List<String> tests = new ArrayList<>();
-        tests.add("200");
+        tests.add(TEST_ID);
         form.setNewSelectedTests(tests);
 
-        form.setReferringSiteCode("100");
+        form.setReferringSiteCode(REFERRING_SITE_CODE);
 
         form.setProviderFirstName("Doc");
         form.setProviderLastName("Brown");
@@ -120,51 +163,59 @@ public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest 
     @Test
     public void persistTbData_newPatient_createsPatientAndSampleHierarchy() {
         SampleTbEntryForm form = createBaseForm();
+        String subjectNumber = form.getTbSubjectNumber();
+        String labNo = form.getLabNo();
 
         boolean result = tbSampleService.persistTbData(form, null);
         assertTrue("Service should return true on success", result);
 
-        Patient patient = patientService.getByExternalId("NEW-SUB-001");
-        assertEquals("NEW-SUB-001", patient.getExternalId());
+        Patient patient = patientService.getByExternalId(subjectNumber);
+        assertEquals(subjectNumber, patient.getExternalId());
         assertEquals("Jane", patient.getPerson().getFirstName());
         assertEquals("Smith", patient.getPerson().getLastName());
 
-        Sample sample = sampleService.getSampleByAccessionNumber("NEW-LAB-001");
-        assertEquals("NEW-LAB-001", sample.getAccessionNumber());
+        Sample sample = sampleService.getSampleByAccessionNumber(labNo);
+        assertEquals(labNo, sample.getAccessionNumber());
 
         List<SampleItem> items = sampleItemService.getSampleItemsBySampleId(sample.getId());
         assertEquals(1, items.size());
 
         List<Analysis> analyses = analysisService.getAnalysesBySampleId(sample.getId());
         assertEquals(1, analyses.size());
-        assertEquals("200", analyses.get(0).getTest().getId());
+        assertEquals(TEST_ID, analyses.get(0).getTest().getId());
     }
 
     @Test
     public void persistTbData_existingPatient_updatesPatientAndCreatesSampleHierarchy() {
+        Patient existingPatient = patientService.getByExternalId(EXISTING_PATIENT_EXTERNAL_ID);
+        String expectedInternalId = existingPatient.getId();
+
         SampleTbEntryForm form = createBaseForm();
-        form.setTbSubjectNumber("SUB-900");
+        String labNo = form.getLabNo();
+        form.setTbSubjectNumber(EXISTING_PATIENT_EXTERNAL_ID);
         form.setPatientFirstName("UpdatedFirst");
         form.setPatientAddress("New Address");
 
         boolean result = tbSampleService.persistTbData(form, null);
         assertTrue(result);
 
-        Patient patient = patientService.getByExternalId("SUB-900");
-        assertEquals("900", patient.getId());
+        Patient patient = patientService.getByExternalId(EXISTING_PATIENT_EXTERNAL_ID);
+        assertEquals(expectedInternalId, patient.getId());
         assertEquals("UpdatedFirst", patient.getPerson().getFirstName());
 
-        Sample sample = sampleService.getSampleByAccessionNumber("NEW-LAB-001");
-        assertEquals("NEW-LAB-001", sample.getAccessionNumber());
+        Sample sample = sampleService.getSampleByAccessionNumber(labNo);
+        assertEquals(labNo, sample.getAccessionNumber());
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void persistTbData_existingSample_updateSample_throwsWhenIdNotSet() {
+        Sample existingSample = sampleService.getSampleByAccessionNumber(EXISTING_SAMPLE_ACCESSION_NUMBER);
+
         SampleTbEntryForm form = createBaseForm();
-        form.setSampleId("900");
-        form.setLabNo("LAB-900");
-        form.setRequestDate("07/01/2025");
-        form.setReceivedDate("07/01/2025");
+        form.setSampleId(existingSample.getId());
+        form.setLabNo(generateUniqueLabNumber());
+        form.setRequestDate(today());
+        form.setReceivedDate(today());
 
         tbSampleService.persistTbData(form, null);
     }
@@ -172,13 +223,13 @@ public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest 
     @Test
     public void persistTbData_createsProviderFromFormFields() {
         SampleTbEntryForm form = createBaseForm();
+        String labNo = form.getLabNo();
 
         boolean result = tbSampleService.persistTbData(form, null);
         assertTrue(result);
 
-        Sample sample = sampleService.getSampleByAccessionNumber("NEW-LAB-001");
-        assertEquals("NEW-LAB-001", sample.getAccessionNumber());
-
+        Sample sample = sampleService.getSampleByAccessionNumber(labNo);
+        assertEquals(labNo, sample.getAccessionNumber());
     }
 
     @Test
@@ -188,13 +239,17 @@ public class TbSampleServiceIntegrationTest extends BaseWebContextSensitiveTest 
         boolean result = tbSampleService.persistTbData(form, null);
         assertTrue(result);
 
-        Sample sample = sampleService.getSampleByAccessionNumber("NEW-LAB-001");
+        Sample sample = sampleService.getSampleByAccessionNumber(form.getLabNo());
 
         List<ObservationHistory> obs = observationHistoryService.getObservationHistoriesBySampleId(sample.getId());
-        assertEquals("Should insert exactly 7 observation history records", 7, obs.size());
+        assertEquals("Should insert exactly " + EXPECTED_OBSERVATIONS.size() + " observation history records",
+                EXPECTED_OBSERVATIONS.size(), obs.size());
 
-        boolean foundOrderReason = obs.stream()
-                .anyMatch(o -> "Reason1".equals(o.getValue()) && "100".equals(o.getObservationHistoryTypeId()));
-        assertTrue("TbOrderReason should be present", foundOrderReason);
+        for (ExpectedObservation expected : EXPECTED_OBSERVATIONS) {
+            boolean found = obs.stream().anyMatch(o -> expected.expectedValue.equals(o.getValue())
+                    && expected.typeId.equals(o.getObservationHistoryTypeId()));
+            assertTrue(expected.typeName + " observation should be present with value '" + expected.expectedValue + "'",
+                    found);
+        }
     }
 }
