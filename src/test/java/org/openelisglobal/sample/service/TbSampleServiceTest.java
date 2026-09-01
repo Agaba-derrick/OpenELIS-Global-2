@@ -106,6 +106,7 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
         resyncSequence("analysis_seq", "analysis");
         resyncSequence("provider_seq", "provider");
         resyncSequence("observation_history_seq", "observation_history");
+        resyncSequence("patient_patient_type_seq", "patient_patient_type");
 
         ensureReferenceTable("SampleTbEntryForm");
     }
