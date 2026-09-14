@@ -82,12 +82,17 @@ import DatabaseCleaning from "./databaseCleaning/DatabaseCleaning";
 import VectorSurveillanceSetup from "./vectorSurveillance/VectorSurveillanceSetup";
 import SampleAcceptanceChecklistSetup from "./sampleAcceptance/SampleAcceptanceChecklistSetup";
 import AdminDashboard from "./AdminDashboard";
+import MicrobiologyReferenceAdmin from "./microbiologyReference/MicrobiologyReferenceAdmin";
 
 function Admin() {
   const { path } = useRouteMatch();
 
   return (
     <Switch>
+      <Route
+        path={`${path}/MicrobiologyReference/:section/:detailId?`}
+        component={MicrobiologyReferenceAdmin}
+      />
       <Route
         path={`${path}/calendarManagement`}
         component={CalendarManagement}
@@ -248,7 +253,7 @@ function Admin() {
       />
       <Route
         path={`${path}/NonConformityConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="NonConformityConfigurationMenu"
             label="Non Conformity Configuration Menu"
@@ -258,7 +263,7 @@ function Admin() {
       />
       <Route
         path={`${path}/MenuStatementConfigMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="MenuStatementConfigMenu"
             label="Menu Statement Configuration Menu"
@@ -268,7 +273,7 @@ function Admin() {
       />
       <Route
         path={`${path}/ValidationConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="ValidationConfigurationMenu"
             label="Validation Configuration Menu"
@@ -278,7 +283,7 @@ function Admin() {
       />
       <Route
         path={`${path}/SampleEntryConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="SampleEntryConfigMenu"
             label="Sample Entry Configuration Menu"
@@ -288,7 +293,7 @@ function Admin() {
       />
       <Route
         path={`${path}/WorkPlanConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="WorkplanConfigurationMenu"
             label="WorkPlan Configuration Menu"
@@ -298,7 +303,7 @@ function Admin() {
       />
       <Route
         path={`${path}/SiteInformationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="SiteInformationMenu"
             label="Site Information Menu"
@@ -308,7 +313,7 @@ function Admin() {
       />
       <Route
         path={`${path}/ResultConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="ResultConfigurationMenu"
             label="Result Configuration Menu"
@@ -318,7 +323,7 @@ function Admin() {
       />
       <Route
         path={`${path}/PatientConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="PatientConfigurationMenu"
             label="Patient Configuration Menu"
@@ -328,7 +333,7 @@ function Admin() {
       />
       <Route
         path={`${path}/PrintedReportsConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="PrintedReportsConfigurationMenu"
             label="PrintedReports Configuration Menu"

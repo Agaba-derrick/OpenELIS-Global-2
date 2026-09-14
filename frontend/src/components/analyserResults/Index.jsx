@@ -19,6 +19,16 @@ import { getFromOpenElisServer } from "../utils/Utils";
 import { ArrowLeft, ArrowRight } from "@carbon/react/icons";
 import PageBreadCrumb from "../common/PageBreadCrumb";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
+import ImportIssuesPanel from "./ImportIssuesPanel";
+
+const importIssuesBreadcrumbs = [
+  { label: "home.label", link: "/" },
+  { label: "analyzer.navigation.analyzers", link: "/analyzers" },
+  {
+    label: "analyzer.importIssues.title",
+    link: "/AnalyzerResults?view=import-issues",
+  },
+];
 
 /**
  * The page title for an analyzer worklist. The URL carries the analyzer's id;
@@ -27,6 +37,9 @@ import CustomLabNumberInput from "../common/CustomLabNumberInput";
  */
 export const analyzerPageTitle = (label, analyzerName) =>
   analyzerName ? `${label}: ${analyzerName}` : label;
+
+export const getAnalyzerResultsView = (search) =>
+  new URLSearchParams(search).get("view") || "";
 
 const Index = () => {
   const { notificationVisible, setNotificationVisible, addNotification } =
@@ -45,10 +58,10 @@ const Index = () => {
   const [sampleGroup, setSampleGroup] = useState([]);
   const [searchTermToPage, setSearchTermToPage] = useState([]);
   const [labNumber, setLabNumber] = useState("");
-  const intl = useIntl();
-
   const location = useLocation();
   const selectedAnalyzerId = new URLSearchParams(location.search).get("id");
+  const view = getAnalyzerResultsView(location.search);
+  const intl = useIntl();
 
   useEffect(() => {
     if (!selectedAnalyzerId) {
@@ -67,6 +80,15 @@ const Index = () => {
       getFromOpenElisServer(url, handleResults);
     }
   }, [url]);
+
+  /** Rereads the worklist the address bar names, after a write changes it. */
+  const refreshResults = () => {
+    if (!url) {
+      return;
+    }
+    setIsLoading(true);
+    getFromOpenElisServer(url, handleResults);
+  };
 
   const extractUniqueGroups = (data) => {
     const seenGroups = new Set();
@@ -98,29 +120,26 @@ const Index = () => {
       if (typeof data.type === "string" && data.type.trim()) {
         setAnalyzerName(data.type.trim());
       }
-      if (data.paging) {
-        var { totalPages, currentPage, searchTermToPage } = data.paging;
-        setSearchTermToPage(
-          Array.isArray(searchTermToPage) ? searchTermToPage : [],
-        );
-        if (totalPages > 1) {
-          setPagination(true);
-          setCurrentApiPage(currentPage);
-          setTotalApiPages(totalPages);
-          if (parseInt(currentPage) < parseInt(totalPages)) {
-            setNextPage(parseInt(currentPage) + 1);
-          } else {
-            setNextPage(null);
-          }
-          if (parseInt(currentPage) > 1) {
-            setPreviousPage(parseInt(currentPage) - 1);
-          } else {
-            setPreviousPage(null);
-          }
-        }
-      }
+      const totalPages = Number(data.paging?.totalPages) || 1;
+      const currentPage = Number(data.paging?.currentPage) || 1;
+      const hasMultiplePages = totalPages > 1;
+      setSearchTermToPage(
+        Array.isArray(data.paging?.searchTermToPage)
+          ? data.paging.searchTermToPage
+          : [],
+      );
+      setPagination(hasMultiplePages);
+      setCurrentApiPage(hasMultiplePages ? currentPage : null);
+      setTotalApiPages(hasMultiplePages ? totalPages : null);
+      setNextPage(
+        hasMultiplePages && currentPage < totalPages ? currentPage + 1 : null,
+      );
+      setPreviousPage(
+        hasMultiplePages && currentPage > 1 ? currentPage - 1 : null,
+      );
 
       if (data.resultList.length == 0) {
+        setSampleGroup([]);
         addNotification({
           kind: NotificationKinds.warning,
           title: intl.formatMessage({ id: "notification.title" }),
@@ -134,6 +153,14 @@ const Index = () => {
       }
     }
   };
+  if (view === "import-issues") {
+    return (
+      <>
+        <PageBreadCrumb breadcrumbs={importIssuesBreadcrumbs} />
+        <ImportIssuesPanel />
+      </>
+    );
+  }
 
   if (!selectedAnalyzerId) {
     return <Redirect to="/analyzers" />;
@@ -246,6 +273,7 @@ const Index = () => {
           analyzerId={queryValue}
           results={results}
           sampleGroup={sampleGroup}
+          refreshResults={refreshResults}
         />
       </div>
     </>
