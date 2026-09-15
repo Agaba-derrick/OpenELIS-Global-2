@@ -103,6 +103,8 @@ public class ShipmentServiceImpl implements ShipmentService {
             Integer id = shipmentDAO.insert(shipment);
             logger.info("Created shipment with ID: {}", id);
             return shipmentDAO.get(id).orElse(null);
+        } catch (LIMSRuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error creating shipment", e);
             throw new LIMSRuntimeException("Error creating shipment", e);
@@ -117,7 +119,7 @@ public class ShipmentServiceImpl implements ShipmentService {
             if (shipment.getSystemUserId() == null && shipment.getId() != null) {
                 Integer storedUserId = shipmentDAO.findSystemUserIdById(shipment.getId());
                 if (storedUserId == null) {
-                    throw new IllegalArgumentException("Shipment not found with ID: " + shipment.getId());
+                    throw new LIMSRuntimeException("Shipment not found with ID: " + shipment.getId());
                 }
                 shipment.setSystemUserId(storedUserId);
             }
@@ -125,6 +127,8 @@ public class ShipmentServiceImpl implements ShipmentService {
             shipmentDAO.update(shipment);
             logger.info("Updated shipment with ID: {}", shipment.getId());
             return shipment;
+        } catch (LIMSRuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating shipment", e);
             throw new LIMSRuntimeException("Error updating shipment", e);
@@ -135,7 +139,7 @@ public class ShipmentServiceImpl implements ShipmentService {
     public Shipment updateShipmentStatus(Integer id, ShipmentStatus newStatus) {
         try {
             Shipment shipment = shipmentDAO.get(id)
-                    .orElseThrow(() -> new IllegalArgumentException("Shipment not found with ID: " + id));
+                    .orElseThrow(() -> new LIMSRuntimeException("Shipment not found with ID: " + id));
 
             shipment.setStatus(newStatus);
             shipment.setLastupdated(new Timestamp(System.currentTimeMillis()));
@@ -151,6 +155,8 @@ public class ShipmentServiceImpl implements ShipmentService {
             shipmentDAO.update(shipment);
             logger.info("Updated shipment {} status to {}", id, newStatus);
             return shipment;
+        } catch (LIMSRuntimeException e) {
+            throw e;
         } catch (Exception e) {
             logger.error("Error updating shipment status", e);
             throw new LIMSRuntimeException("Error updating shipment status", e);
