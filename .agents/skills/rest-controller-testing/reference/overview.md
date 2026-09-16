@@ -11,7 +11,7 @@ OpenELIS Global 2 supports two primary approaches for testing REST controllers:
 controller returns corrupted payload values, wrong field mappings, or invalid
 state.
 
-### ❌ Anti-Pattern (Weak Assertions — DO NOT USE)
+### Anti-Pattern (Weak Assertions — DO NOT USE)
 
 ```java
 // WEAK: Does not verify payload contents, properties, or array bounds
@@ -21,7 +21,7 @@ assertFalse("List should not be empty", items.isEmpty());
 .andExpect(jsonPath("$.data").exists());
 ```
 
-### ✅ Best Practice (Strong Assertions — MANDATORY)
+### Best Practice (Strong Assertions — MANDATORY)
 
 ```java
 // STRONG: Verifies exact HTTP status, precise array length, and exact scalar property values
