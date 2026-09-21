@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -581,6 +582,8 @@ public class ResultsValidationUtility {
         } else {
             testItem.setResultType(getTestResultType(testResults));
         }
+        testItem.setResultFlag(ValidationSignals.resultFlag(resultLimit, testItem.getResultType(),
+                result == null ? null : result.getValue()));
         testItem.setCriticalRange(CriticalRangeFormat.display(resultLimit, testItem.getResultType(),
                 testResults.isEmpty() ? "0" : testResults.get(0).getSignificantDigits()));
         testItem.setTestSortNumber(test.getSortOrder());
@@ -598,10 +601,8 @@ public class ResultsValidationUtility {
             List<TestResult> testResults) {
         if (resultLimit != null) {
             testItem.setResultLimitId(resultLimit.getId());
-            testItem.setLowerCritical(
-                    resultLimit.getLowCritical() == Double.NEGATIVE_INFINITY ? 0 : resultLimit.getLowCritical());
-            testItem.setHigherCritical(
-                    resultLimit.getHighCritical() == Double.POSITIVE_INFINITY ? 0 : resultLimit.getHighCritical());
+            testItem.setLowerCritical(ValidationSignals.authoredBound(resultLimit.getLowCritical()));
+            testItem.setHigherCritical(ValidationSignals.authoredBound(resultLimit.getHighCritical()));
 
             testItem.setNormalRange(SpringContext.getBean(ResultLimitService.class).getDisplayReferenceRange(
                     resultLimit, testResults.isEmpty() ? "0" : testResults.get(0).getSignificantDigits(), " - "));
@@ -755,7 +756,26 @@ public class ResultsValidationUtility {
             }
         }
 
+        markClearLane(analysisResultList);
         return analysisResultList;
+    }
+
+    /**
+     * OGC-1226 (FR-4, FR-5) — the lane verdict the page shows, decided here on the
+     * rows the queue serves: an analysis is clear only when every one of its rows
+     * is, so all rows of one analysis carry the same verdict.
+     */
+    private void markClearLane(List<AnalysisItem> rows) {
+        Map<String, List<AnalysisItem>> rowsByAnalysis = new LinkedHashMap<>();
+        for (AnalysisItem row : rows) {
+            rowsByAnalysis.computeIfAbsent(row.getAnalysisId(), key -> new ArrayList<>()).add(row);
+        }
+        for (List<AnalysisItem> group : rowsByAnalysis.values()) {
+            boolean clear = ValidationSignals.allClear(group);
+            for (AnalysisItem row : group) {
+                row.setClear(clear);
+            }
+        }
     }
 
     protected final RecordStatus getSampleRecordStatus(Sample sample) {
@@ -789,8 +809,13 @@ public class ResultsValidationUtility {
         analysisResultItem.setQcStatus(qcStatusFor(analysis));
     }
 
-    private boolean hasOpenNonConformity(Analysis analysis) {
-        if (analysis.getSampleItem() == null || GenericValidator.isBlankOrNull(analysis.getSampleItem().getId())) {
+    /**
+     * Whether a non-conformity is still open against the analysis's sample item.
+     * Public since OGC-1226 so result entry can feed the same clearance rule.
+     */
+    public boolean hasOpenNonConformity(Analysis analysis) {
+        if (analysis == null || analysis.getSampleItem() == null
+                || GenericValidator.isBlankOrNull(analysis.getSampleItem().getId())) {
             return false;
         }
         Integer sampleItemId;
@@ -960,10 +985,9 @@ public class ResultsValidationUtility {
         testUnits = augmentUOMWithRange(testUnits, testResultItem.getResult());
 
         analysisResultItem.setAccessionNumber(testResultItem.getAccessionNumber());
-        analysisResultItem.setLowerCritical(
-                testResultItem.getLowerCritical() == Double.NEGATIVE_INFINITY ? 0 : testResultItem.getLowerCritical());
-        analysisResultItem.setHigherCritical(testResultItem.getHigherCritical() == Double.POSITIVE_INFINITY ? 0
-                : testResultItem.getHigherCritical());
+        analysisResultItem.setLowerCritical(testResultItem.getLowerCritical());
+        analysisResultItem.setHigherCritical(testResultItem.getHigherCritical());
+        analysisResultItem.setResultFlag(testResultItem.getResultFlag());
         analysisResultItem.setNormalRange(testResultItem.getNormalRange());
         analysisResultItem.setPatientName(testResultItem.getPatientName());
         analysisResultItem.setTestName(testName);
@@ -1116,6 +1140,7 @@ public class ResultsValidationUtility {
         for (AnalysisItem row : rows) {
             row.setAutoValidated(true);
             row.setReadOnly(true);
+            row.setClear(false);
         }
         sortByAccessionNumberAndOrder(rows);
         return rows;
