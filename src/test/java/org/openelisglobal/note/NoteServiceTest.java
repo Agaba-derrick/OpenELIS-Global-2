@@ -41,6 +41,8 @@ public class NoteServiceTest extends BaseWebContextSensitiveTest {
     @Test
     public void deleteNote_shouldDeleteNote() throws Exception {
         Note savedNote = noteService.get("1");
+        assertNotNull("Note should exist in dataset", savedNote);
+
         noteService.delete(savedNote);
 
         List<Note> remainingNotes = noteService.getAll();
