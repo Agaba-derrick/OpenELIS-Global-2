@@ -112,6 +112,7 @@ public class TestLabelConfigServiceImplTest extends BaseWebContextSensitiveTest 
         preset.setIsSystem(false);
         preset.setIsActive(true);
         Integer id = labelPresetDAO.insert(preset);
+        assertNotNull("inserted preset must get an id", id);
         assertTrue("inserted preset must get a positive id", id > 0);
         return preset;
     }

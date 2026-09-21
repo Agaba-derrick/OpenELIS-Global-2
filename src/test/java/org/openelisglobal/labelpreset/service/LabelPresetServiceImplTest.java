@@ -185,6 +185,7 @@ public class LabelPresetServiceImplTest extends BaseWebContextSensitiveTest {
     @Test
     public void createAndGet_roundtrip() {
         LabelPreset created = createPreset(TEST_PREFIX + "roundtrip");
+        assertNotNull("Created preset should have an id", created.getId());
 
         LabelPreset fetched = labelPresetService.get(created.getId());
         assertEquals(TEST_PREFIX + "roundtrip", fetched.getName());
