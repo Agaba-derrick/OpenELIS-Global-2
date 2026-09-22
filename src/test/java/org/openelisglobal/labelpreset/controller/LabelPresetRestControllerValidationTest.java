@@ -201,7 +201,9 @@ public class LabelPresetRestControllerValidationTest extends BaseWebContextSensi
     public void post_validForm_returns201WithId() throws Exception {
         LabelPresetForm form = buildValidForm(TEST_PREFIX + "created_ok");
         mockMvc.perform(post(BASE_URL).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(form)))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.name").value(TEST_PREFIX + "created_ok"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").value(org.hamcrest.CoreMatchers.notNullValue()))
+                .andExpect(jsonPath("$.name").value(TEST_PREFIX + "created_ok"))
                 .andExpect(jsonPath("$.heightMm").value(20)).andExpect(jsonPath("$.widthMm").value(40))
                 .andExpect(jsonPath("$.barcodeType").value("CODE_128"))
                 .andExpect(jsonPath("$.printsPerSample").value(true));

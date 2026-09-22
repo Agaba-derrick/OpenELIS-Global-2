@@ -1,5 +1,6 @@
 package org.openelisglobal.labelpreset.controller;
 
+import static org.junit.Assert.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -105,19 +106,25 @@ public class SiteWideBarcodeSettingsRestControllerTest extends BaseWebContextSen
         body1.setPrePrintUseAltAccession(false);
         body1.setPrePrintAltAccessionPrefix("FIRST");
         mockMvc.perform(post(BASE_URL).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(body1)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.prePrintUseAltAccession").value(false))
+                .andExpect(jsonPath("$.prePrintAltAccessionPrefix").value("FIRST"));
 
         // Second save (update)
         SiteBarcodePreprintSettings body2 = new SiteBarcodePreprintSettings();
         body2.setPrePrintUseAltAccession(true);
         body2.setPrePrintAltAccessionPrefix("SECOND");
         mockMvc.perform(post(BASE_URL).contentType(MediaType.APPLICATION_JSON).content(JSON.writeValueAsString(body2)))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.prePrintUseAltAccession").value(true))
+                .andExpect(jsonPath("$.prePrintAltAccessionPrefix").value("SECOND"));
 
         ConfigurationProperties.loadDBValuesIntoConfiguration();
 
         mockMvc.perform(get(BASE_URL).accept(MediaType.APPLICATION_JSON)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.prePrintUseAltAccession").value(true))
                 .andExpect(jsonPath("$.prePrintAltAccessionPrefix").value("SECOND"));
+
+        assertEquals("SECOND",
+                siteInformationService.getSiteInformationByName("prePrintAltAccessionPrefix").getValue());
+        assertEquals("true", siteInformationService.getSiteInformationByName("prePrintUseAltAccession").getValue());
     }
 }
