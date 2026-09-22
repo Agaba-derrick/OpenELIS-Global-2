@@ -470,11 +470,30 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
      * order (e.g. {@code person_pk id=2 already exists}). Call this before
      * sequence-backed inserts into a fixture-seeded table.
      */
-    protected void resyncSequence(String sequence, String table) {
-        try (Connection conn = dataSource.getConnection(); Statement st = conn.createStatement()) {
+    /**
+     * Resync a Postgres sequence to {@code MAX(id)+1} of its table using an
+     * existing connection.
+     */
+    protected void resyncSequence(Connection conn, String sequence, String table) {
+        try (Statement st = conn.createStatement()) {
             // id columns are numeric(10); setval needs a bigint.
             st.execute("SELECT setval('" + sequence + "', (SELECT COALESCE(MAX(id), 0) + 1 FROM " + table
                     + ")::bigint, false)");
+        } catch (SQLException e) {
+            throw new RuntimeException("Failed to resync sequence " + sequence + " from " + table, e);
+        }
+    }
+
+    /**
+     * Resync a Postgres sequence to {@code MAX(id)+1} of its table. DBUnit fixture
+     * loads insert rows with explicit ids without advancing the sequence, so a
+     * later sequence-backed insert can collide with a seeded id depending on test
+     * order (e.g. {@code person_pk id=2 already exists}). Call this before
+     * sequence-backed inserts into a fixture-seeded table.
+     */
+    protected void resyncSequence(String sequence, String table) {
+        try (Connection conn = dataSource.getConnection()) {
+            resyncSequence(conn, sequence, table);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to resync sequence " + sequence + " from " + table, e);
         }
@@ -589,7 +608,7 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
     protected void resyncAllSequences() {
         try (Connection conn = dataSource.getConnection()) {
             for (String[] mapping : FIXTURE_SEQUENCE_MAPPINGS) {
-                resyncSequence("clinlims." + mapping[1], "clinlims." + mapping[0]);
+                resyncSequence(conn, "clinlims." + mapping[1], "clinlims." + mapping[0]);
             }
         } catch (SQLException e) {
             throw new RuntimeException("Failed to resync all sequence mappings", e);
