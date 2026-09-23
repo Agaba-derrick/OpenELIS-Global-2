@@ -1,5 +1,6 @@
 name: Good First Issue Candidate Template
 description: Propose a potential Good First Issue (Candidate)
+labels: ["good first issue", "needs triage"]
 body:
   - type: markdown
     attributes:

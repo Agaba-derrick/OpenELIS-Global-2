@@ -1,5 +1,6 @@
 name: Beginner Issue Template
 description: Create a Beginner Issue for fairly new contributors (React/Java/Testing)
+labels: ["beginner"]
 body:
   - type: markdown
     attributes:
@@ -45,8 +46,8 @@ body:
       description: Describe the issue in a clear, approachable way. Explain the context, what needs to change, and the expected outcome without assuming deep knowledge of the codebase.
       placeholder: |
         Edit here. Example:
-        The PermissionModuleServiceTest class is missing a test case for when an invalid module name is requested.
-        Adding a testInvalidModuleName() method would improve our test coverage and ensure the service handles unknown modules gracefully.
+        PermissionModuleServiceTest covers the service's own methods but none of the ones it inherits from BaseObjectService: getMatch(), getAll(), getAllOrdered() and getAllMatchingOrdered() have no tests.
+        Adding a test for getMatch() with a property value no row has would confirm the service returns Optional.empty() for both permission agents instead of throwing.
     validations:
       required: true
 
@@ -57,11 +58,11 @@ body:
       description: Describe the approach for addressing this issue in a clear and focused way. Explain what will be changed and what the end result should look like.
       placeholder: |
         Edit here. Example:
-        Add a testInvalidModuleName() method to PermissionModuleServiceTest.java that asserts an exception is thrown or null is returned.
+        Add getMatch_ShouldReturnEmpty_WhenNoRowMatches() to PermissionModuleServiceTest.java.
         The changes should:
-        1. Setup the service with mock dependencies.
-        2. Call the method with an invalid module name.
-        3. Assert the expected outcome.
+        1. Reuse the class's setPermissionsAgent() helper to run the check once with "ROLE" and once with "USER".
+        2. Call permissionModuleService.getMatch("id", "999999"), an id the permission-module.xml fixture never defines.
+        3. Assert the result is Optional.empty() in both cases.
     validations:
       required: true
 
@@ -73,13 +74,13 @@ body:
       placeholder: |
         Edit here. Example:
         Step 1: Open the test file
-        - Open PermissionModuleServiceTest.java
+        - Open src/test/java/org/openelisglobal/systemusermodule/service/PermissionModuleServiceTest.java
         
         Step 2: Add the test case
-        - Look at how existing tests are structured and add a new @Test method for invalid module names.
+        - Follow the existing *_WhenAgentIsRole / *_WhenAgentIsUser pairs: call setPermissionsAgent(), then assert on getMatch("id", "999999").
         
         Step 3: Verify
-        - Run the test suite to verify the test passes.
+        - Run mvn test -Dtest=PermissionModuleServiceTest and confirm the new test passes alongside the existing ones.
     validations:
       required: true
 

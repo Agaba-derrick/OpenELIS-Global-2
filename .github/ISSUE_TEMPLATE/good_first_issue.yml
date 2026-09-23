@@ -1,5 +1,6 @@
 name: Good First Issue Template
 description: Create a Good First Issue for new contributors (React/Java/Testing)
+labels: ["good first issue"]
 body:
   - type: markdown
     attributes:

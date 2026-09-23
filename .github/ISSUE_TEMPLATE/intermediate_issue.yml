@@ -1,5 +1,6 @@
 name: Intermediate Issue Template
 description: Create a well-documented issue for contributors with some familiarity with the codebase
+labels: ["intermediate"]
 body:
   - type: markdown
     attributes:
