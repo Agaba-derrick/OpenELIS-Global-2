@@ -33,6 +33,7 @@ import org.openelisglobal.security.WithDaemonUser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -44,6 +45,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit4.AbstractTransactionalJUnit4SpringContextTests;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -466,13 +469,6 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
     }
 
     /**
-     * Resync a Postgres sequence to {@code MAX(id)+1} of its table. DBUnit fixture
-     * loads insert rows with explicit ids without advancing the sequence, so a
-     * later sequence-backed insert can collide with a seeded id depending on test
-     * order (e.g. {@code person_pk id=2 already exists}). Call this before
-     * sequence-backed inserts into a fixture-seeded table.
-     */
-    /**
      * Resync a Postgres sequence to {@code MAX(id)+1} of its table using an
      * existing connection.
      */
@@ -623,10 +619,9 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
      * @param url the endpoint URL
      * @return ResultActions to perform assertions on
      */
-    protected org.springframework.test.web.servlet.ResultActions performGet(String url) throws Exception {
-        return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url)
-                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .accept(org.springframework.http.MediaType.APPLICATION_JSON));
+    protected ResultActions performGet(String url) throws Exception {
+        return mockMvc.perform(MockMvcRequestBuilders.get(url).contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON));
     }
 
     /**
@@ -636,10 +631,8 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
      * @param content the object payload to serialize as JSON
      * @return ResultActions to perform assertions on
      */
-    protected org.springframework.test.web.servlet.ResultActions performPost(String url, Object content)
-            throws Exception {
-        return mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(url)
-                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .accept(org.springframework.http.MediaType.APPLICATION_JSON).content(mapToJson(content)));
+    protected ResultActions performPost(String url, Object content) throws Exception {
+        return mockMvc.perform(MockMvcRequestBuilders.post(url).contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON).content(mapToJson(content)));
     }
 }
