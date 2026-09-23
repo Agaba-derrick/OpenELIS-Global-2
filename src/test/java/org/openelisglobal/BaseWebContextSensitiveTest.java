@@ -111,7 +111,9 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
             { "inventory_item", "inventory_item_seq" }, { "observation_history", "observation_history_seq" },
             { "organization", "organization_seq" }, { "analyzer", "analyzer_seq" },
             { "referral_status_history", "referral_status_history_seq" }, { "calculation", "calculation_seq" },
-            { "result_limits", "result_limits_seq" }, { "site_information", "site_information_seq" } };
+            { "result_limits", "result_limits_seq" }, { "site_information", "site_information_seq" },
+            { "reflex_rule", "reflex_rule_seq" }, { "reflex_rule_condition", "reflex_rule_condition_seq" },
+            { "reflex_rule_action", "reflex_rule_action_seq" } };
 
     /**
      * Default sys_user_id for audit-emitting service calls in tests. Matches the
