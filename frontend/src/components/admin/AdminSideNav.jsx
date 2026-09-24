@@ -64,17 +64,7 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
    * reader no way to know what to do next.
    */
   const sectionsCaption = (id, dataCy, messageId, values) => (
-    <li
-      id={id}
-      data-cy={dataCy}
-      className="adminSideNav__sectionsContext"
-      style={{
-        padding: "0.25rem 1rem 0.5rem",
-        fontSize: "0.75rem",
-        lineHeight: 1.3,
-        color: "var(--cds-text-secondary, #6f6f6f)",
-      }}
-    >
+    <li id={id} data-cy={dataCy} className="adminSideNav__sectionsContext">
       <FormattedMessage id={messageId} values={values} />
     </li>
   );
@@ -88,7 +78,6 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
       aria-describedby={describedBy}
       tabIndex={-1}
       onClick={(e) => e.preventDefault()}
-      style={{ opacity: 0.5, cursor: "not-allowed" }}
     >
       {label}
     </SideNavMenuItem>
@@ -404,6 +393,12 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
             }
           />
         </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="catalogImport"
+          {...navProps(`${path}/CatalogImport`)}
+        >
+          <FormattedMessage id="sidenav.label.admin.catalogImport" />
+        </SideNavMenuItem>
         {editorLabUnitId ? (
           <>
             {editorLabUnitId === "new"
@@ -554,12 +549,6 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
               id="testCatalogSectionsHelp"
               data-cy="testCatalogSectionsContext"
               className="adminSideNav__sectionsContext"
-              style={{
-                padding: "0.25rem 1rem 0.5rem",
-                fontSize: "0.75rem",
-                lineHeight: 1.3,
-                color: "var(--cds-text-secondary, #6f6f6f)",
-              }}
             >
               {editorTestId ? (
                 editorTestName ? (
@@ -598,7 +587,6 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
                   aria-describedby="testCatalogSectionsHelp"
                   tabIndex={-1}
                   onClick={(e) => e.preventDefault()}
-                  style={{ opacity: 0.5, cursor: "not-allowed" }}
                 >
                   {label}
                 </SideNavMenuItem>
@@ -621,13 +609,23 @@ export default function AdminSideNav({ isTrainingInstallation = false }) {
       >
         <FormattedMessage id="sidenav.label.admin.program" />
       </SideNavLink>
-      <SideNavLink
-        data-cy="providerMgmnt"
+      <SideNavMenu
         renderIcon={CicsSystemGroup}
-        {...navProps(`${path}/providerMenu`)}
+        title={intl.formatMessage({ id: "provider.browse.title" })}
       >
-        <FormattedMessage id="provider.browse.title" />
-      </SideNavLink>
+        <SideNavMenuItem
+          data-cy="providerMgmnt"
+          {...navProps(`${path}/providerMenu`)}
+        >
+          <FormattedMessage id="provider.browse.title" />
+        </SideNavMenuItem>
+        <SideNavMenuItem
+          data-cy="providerTitles"
+          {...navProps(`${path}/providerTitleMenu`)}
+        >
+          <FormattedMessage id="providerTitle.titles" />
+        </SideNavMenuItem>
+      </SideNavMenu>
       <SideNavLink
         data-cy="labelPresets"
         renderIcon={QrCode}

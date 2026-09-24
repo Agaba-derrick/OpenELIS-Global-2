@@ -28,6 +28,7 @@ import {
   SelectItem,
   Loading,
   Link,
+  ActionableNotification,
   Tag,
 } from "@carbon/react";
 import { Copy, ArrowLeft, ArrowRight } from "@carbon/icons-react";
@@ -54,8 +55,17 @@ import { isStorageAssignmentSuccess } from "../storage/LocationPicker/storageAss
 import ResultMultiSelect from "../common/multiSelect";
 import CascadingMultiSelect from "../common/cascadingMultiSelect";
 import EQABadge from "../eqa/EQABadge";
+import { classifyNumericResult, numericResultStyle } from "./numericResultFlag";
+import {
+  exceedsDecimalPlaces,
+  normalizeScientificNotation,
+  roundMantissa,
+} from "./scientificNotation";
+import { FlagChip } from "./unified/flags";
+import "./unified/unified-results.scss";
 import InlineNceForm from "../nonconform/common/InlineNceForm";
-import { Warning } from "@carbon/icons-react";
+import CriticalCallbackModal from "./CriticalCallbackModal";
+import { Warning, Phone } from "@carbon/icons-react";
 import ESignatureButton, {
   SignatureMeaning,
 } from "../esignature/ESignatureButton";
@@ -1128,6 +1138,12 @@ export function SearchResults(props) {
   const [nceFormOpenRow, setNceFormOpenRow] = useState(null); // Track which row has NCE form open
   // Which analysisId's storage-picker modal is open (one at a time).
   const [storageModalRow, setStorageModalRow] = useState(null);
+  // Which row's critical-callback modal is open (one at a time; OGC-714).
+  const [callbackModalRow, setCallbackModalRow] = useState(null);
+  // Rows with a callback logged (keyed by row.id). Drives the needs-callback
+  // banner: seeded from the durable record (/rest/critical-callback/
+  // logged-results) when results load, updated in place on a new log.
+  const [loggedCallbackRows, setLoggedCallbackRows] = useState({});
 
   const componentMounted = useRef(false);
   const holdingTimeNotifiedRows = useRef(new Set());
@@ -1217,21 +1233,43 @@ export function SearchResults(props) {
           row.resultValue = validation.newValue;
           validation.style = {
             ...validation?.style,
-            borderColor: validation.isCritical
-              ? "orange"
-              : validation.isInvalid
-                ? "red"
-                : "",
-            background: validation.outsideValid
-              ? "#ffa0a0"
-              : validation.outsideNormal
-                ? "#ffffa0"
-                : "var(--cds-field)",
+            ...numericResultStyle(validation),
           };
         }
       });
       setValidationState(newValidationState);
     }
+  }, [props.results]);
+
+  // Seed the needs-callback banner from the durable record: saved results on
+  // this page that already have a callback logged (any session, any user) —
+  // a page reload must not resurrect the banner for already-called criticals.
+  useEffect(() => {
+    const rows = (props.results?.testResult || []).filter(
+      (row) => row.resultId,
+    );
+    if (rows.length === 0) {
+      return;
+    }
+    const ids = rows.map((row) => row.resultId).join(",");
+    getFromOpenElisServer(
+      `/rest/critical-callback/logged-results?resultIds=${ids}`,
+      (logged) => {
+        if (!componentMounted.current || !Array.isArray(logged)) {
+          return;
+        }
+        const loggedSet = new Set(logged.map(String));
+        const seeded = {};
+        rows.forEach((row) => {
+          if (loggedSet.has(String(row.resultId))) {
+            seeded[row.id] = true;
+          }
+        });
+        if (Object.keys(seeded).length > 0) {
+          setLoggedCallbackRows((prev) => ({ ...prev, ...seeded }));
+        }
+      },
+    );
   }, [props.results]);
 
   const loadReferalOrganizations = (values) => {
@@ -1836,55 +1874,82 @@ export function SearchResults(props) {
 
           case "N":
             return (
-              <TextInput
-                id={"ResultValue" + row.id}
-                name={"testResult[" + row.id + "].resultValue"}
-                labelText=""
-                type="number"
-                value={row.resultValue}
-                style={{ ...validationState[row.id]?.style, ...holdingStyle }}
-                onBlur={(e) => {
-                  if (
-                    validationState[row.id]?.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        row.resultValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
-                }}
-                onChange={(e) => {
-                  handleChange(e, row.id);
-                  if (
-                    validationState[row.id]?.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        row.resultValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
-                }}
-              />
+              <>
+                <TextInput
+                  id={"ResultValue" + row.id}
+                  name={"testResult[" + row.id + "].resultValue"}
+                  labelText=""
+                  type="text"
+                  inputMode="text"
+                  value={row.resultValue}
+                  style={{ ...validationState[row.id]?.style, ...holdingStyle }}
+                  onBlur={(e) => {
+                    if (
+                      validationState[row.id]?.isInvalid &&
+                      configurationProperties.ALERT_FOR_INVALID_RESULTS
+                    ) {
+                      addNotification({
+                        title: intl.formatMessage({ id: "notification.title" }),
+                        message:
+                          intl.formatMessage({
+                            id: "result.outOfValidRange.msg",
+                          }) +
+                          " " +
+                          row.testName +
+                          " : " +
+                          row.resultValue,
+                        kind: NotificationKinds.error,
+                      });
+                      setNotificationVisible(true);
+                    }
+                  }}
+                  onChange={(e) => {
+                    handleChange(e, row.id);
+                    if (
+                      validationState[row.id]?.isInvalid &&
+                      configurationProperties.ALERT_FOR_INVALID_RESULTS
+                    ) {
+                      addNotification({
+                        title: intl.formatMessage({ id: "notification.title" }),
+                        message:
+                          intl.formatMessage({
+                            id: "result.outOfValidRange.msg",
+                          }) +
+                          " " +
+                          row.testName +
+                          " : " +
+                          row.resultValue,
+                        kind: NotificationKinds.error,
+                      });
+                      setNotificationVisible(true);
+                    }
+                  }}
+                />
+                {/* Callback is documented against a PERSISTED result: the
+                    button only renders once the critical value has been
+                    saved (row.resultId), so the modal can
+                    never substitute for Save. The modal itself is rendered
+                    once at form level (pagination-proof for the banner). */}
+                {validationState[row.id]?.isCritical && row.resultId && (
+                  <Button
+                    hasIconOnly
+                    kind="danger--tertiary"
+                    size="sm"
+                    style={{ marginTop: "0.25rem" }}
+                    renderIcon={Phone}
+                    data-testid="log-callback-button"
+                    iconDescription={intl.formatMessage({
+                      id: "qa.qi.callback.button",
+                    })}
+                    onClick={() => setCallbackModalRow(row.id)}
+                  />
+                )}
+                {validationState[row.id]?.flag === "CRITICAL" && (
+                  <div data-testid={`critical-flag-${row.id}`}>
+                    <FlagChip flag="CRITICAL" />
+                  </div>
+                )}
+              </>
             );
 
           case "R":
@@ -2397,10 +2462,10 @@ export function SearchResults(props) {
               </Button>
               <LocationPickerModal
                 isOpen={storageModalRow === data.id}
-                sample={{
-                  id: sampleItemId || data.accessionNumber,
-                  sampleAccessionNumber: data.accessionNumber,
-                  sampleType: data.sampleType || "",
+                occupantType="SAMPLE_ITEM"
+                occupant={{
+                  label: data.accessionNumber,
+                  type: data.sampleType || "",
                   status: data.sampleStatus || "Active",
                 }}
                 onConfirm={({ selection, position, reason, notes }) => {
@@ -2485,7 +2550,9 @@ export function SearchResults(props) {
     if (("" + value).startsWith("<") || ("" + value).startsWith(">")) {
       greaterThanOrLessThan = value.charAt(0);
     }
-    var actualValue = ("" + value).replace(/[<>]/g, "");
+    var actualValue = normalizeScientificNotation(
+      ("" + value).replace(/[<>]/g, ""),
+    );
     let validation = {
       isInvalid: false,
       outsideNormal: false,
@@ -2511,38 +2578,8 @@ export function SearchResults(props) {
     // }
     if (validation.isNaN) {
       return { ...validation };
-    } else if (
-      row.lowCritical != row.highCritical &&
-      actualValue > row.lowCritical &&
-      actualValue < row.highCritical
-    ) {
-      return { ...validation, isCritical: true };
-    } else if (
-      row.lowerAbnormalRange != row.upperAbnormalRange &&
-      (actualValue < row.lowerAbnormalRange ||
-        actualValue > row.upperAbnormalRange)
-    ) {
-      return { ...validation, isInvalid: true, outsideValid: true };
-      // resultBox.style.background = "#ffa0a0";
-      // resultBox.title = "En dehors de la plage valide"; //FIXME: Uses hardcoded French labels. Switch to refer to resource file.
-      // $("valid_" + row).value = false;
-      // if( outOfValidRangeMsg ){
-      //   alert( outOfValidRangeMsg);
-      // }
-    } else if (
-      row.lowerNormalRange != row.upperNormalRange &&
-      (actualValue < row.lowerNormalRange || actualValue > row.upperNormalRange)
-    ) {
-      return { ...validation, outsideNormal: true };
-      // resultBox.style.background = "#ffffa0";
-      // resultBox.title = "En dehors de la plage normale"; //FIXME: Uses hardcoded French labels. Switch to refer to resource file.
-      // $("valid_" + row).value = true;
-    } else {
-      return { ...validation, outsideNormal: false };
-      // resultBox.style.background = "#ffffff";
-      // resultBox.title = "";
-      // $("valid_" + row).value = true;
     }
+    return { ...validation, ...classifyNumericResult(actualValue, row) };
   };
 
   const validateNumberFormat = (value, row) => {
@@ -2552,14 +2589,11 @@ export function SearchResults(props) {
       greaterThanOrLessThan = value.charAt(0);
     }
     var actualValue = ("" + value).replace(/[<>]/g, "");
+    var parseableValue = normalizeScientificNotation(actualValue);
 
     let validation = { isInvalid: false };
     if (!actualValue) {
       return { ...validation, isInvalid: true, isBlank: true };
-      // resultBox.title = "";
-      // resultBox.style.background = "#ffffff";
-      // $("valid_" + row).value = false;
-      // return true;
     }
 
     if (actualValue.trim() == ".") {
@@ -2569,23 +2603,18 @@ export function SearchResults(props) {
       };
     }
 
-    if (isNaN(actualValue)) {
+    if (isNaN(parseableValue)) {
       return { ...validation, isInvalid: true, isNaN: true };
-      // $("valid_" + row).value = false;
-      // return false;
     }
 
-    if (!isNaN(row.significantDigits)) {
-      const valueStr = actualValue.toString();
-      if (valueStr.includes(".")) {
-        const decimalPlaces = valueStr.split(".")[1].length;
-        if (decimalPlaces > row.significantDigits) {
-          actualValue = parseFloat(actualValue).toFixed(row.significantDigits);
-        }
-      }
+    // The value is kept in the notation it was typed in; only a mantissa finer
+    // than the test reports to is rounded, and it is rounded in place.
+    if (exceedsDecimalPlaces(actualValue, row.significantDigits)) {
       validation = {
         ...validation,
-        newValue: greaterThanOrLessThan + actualValue,
+        newValue:
+          greaterThanOrLessThan +
+          roundMantissa(actualValue, row.significantDigits),
       };
     }
 
@@ -2737,6 +2766,24 @@ export function SearchResults(props) {
     if (isSubmitting) {
       return;
     }
+    const nonNumericRow = props.results.testResult.find(
+      (row) => row.resultType === "N" && validationState[row.id]?.isNaN,
+    );
+    if (nonNumericRow) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage(
+          { id: "result.notNumeric.msg" },
+          {
+            test: nonNumericRow.testName,
+            value: nonNumericRow.resultValue,
+          },
+        ),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
     setIsSubmitting(true);
     var searchEndPoint = "/rest/LogbookResults";
     props.results.testResult.forEach((result) => {
@@ -2829,6 +2876,14 @@ export function SearchResults(props) {
     setPage(1);
   }, [poolLotFilter, poolIdFilter]);
 
+  // Saved criticals with no callback logged this session (OGC-714).
+  const needsCallback = allRows.filter(
+    (row) =>
+      validationState[row.id]?.isCritical &&
+      row.resultId &&
+      !loggedCallbackRows[row.id],
+  );
+
   return (
     <>
       {notificationVisible === true ? <AlertDialog /> : ""}
@@ -2853,6 +2908,51 @@ export function SearchResults(props) {
             </Column>
           </Grid>
         )}
+        {/* Persistent needs-callback banner (OGC-714). The v4 Results Entry
+            design reserves a banner for exactly this; this is the legacy-page
+            bridge. */}
+        {needsCallback.length > 0 && (
+          <ActionableNotification
+            kind="warning"
+            lowContrast
+            inline
+            hideCloseButton
+            // status, not the alertdialog default: Carbon's alertdialog
+            // grabs focus back to the banner on every render, making the
+            // callback modal (and the results grid) untypeable while the
+            // banner is visible.
+            role="status"
+            data-testid="callback-banner"
+            style={{ maxWidth: "none", marginBottom: "0.5rem" }}
+            title={intl.formatMessage({
+              id: "qa.qi.callback.banner.title",
+            })}
+            subtitle={intl.formatMessage(
+              { id: "qa.qi.callback.banner.subtitle" },
+              { count: needsCallback.length },
+            )}
+            actionButtonLabel={intl.formatMessage({
+              id: "qa.qi.callback.button",
+            })}
+            onActionButtonClick={() => {
+              const first = needsCallback[0];
+              document
+                .getElementById("ResultValue" + first.id)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              setCallbackModalRow(first.id);
+            }}
+          />
+        )}
+        <CriticalCallbackModal
+          open={callbackModalRow != null}
+          resultRow={(props.results?.testResult || []).find(
+            (row) => row.id === callbackModalRow,
+          )}
+          onClose={() => setCallbackModalRow(null)}
+          onLogged={(row) =>
+            setLoggedCallbackRows((prev) => ({ ...prev, [row.id]: true }))
+          }
+        />
         <Formik
           initialValues={SearchResultFormValues}
           //validationSchema={}
