@@ -49,6 +49,7 @@ import {
   RowEditState,
   initialRowState,
   isModifyingSavedResult,
+  writesResultValue,
   isRowEditable,
   nextRowState,
   showEdit,
@@ -226,6 +227,11 @@ const UnifiedResults: React.FC = () => {
   const [rejectDrafts, setRejectDrafts] = useState<Record<string, RejectDraft>>(
     {},
   );
+  // The date the reference laboratory reported a result that is being typed in
+  // here, per referred row.
+  const [referenceLabReportDates, setReferenceLabReportDates] = useState<
+    Record<string, string>
+  >({});
   const [interpretationDrafts, setInterpretationDrafts] = useState<
     Record<string, string>
   >({});
@@ -575,11 +581,41 @@ const UnifiedResults: React.FC = () => {
         }
         return next;
       });
+      // Referring a test out is not a change to its result, so it makes an
+      // already saved row savable without unlocking the value or recording the
+      // save as a revision. Without this a confirmation referral, which is raised
+      // precisely when a result already exists, could not be saved at all.
+      // Withdrawing the referral again takes the row back to plain saved.
+      setRowStates((current) => ({
+        ...current,
+        [key]: nextRowState(current[key] || "EMPTY", {
+          type: draft ? "DISPOSITION_CHANGED" : "DISPOSITION_CLEARED",
+        }),
+      }));
       if (draft) {
-        markRowDirty(target);
+        setEditingAnalysisId(target.analysisId);
       }
     },
-    [markRowDirty],
+    [],
+  );
+
+  /**
+   * The reference laboratory's own report date belongs to the referral, so
+   * recording it makes an already-saved row savable without unlocking the
+   * result or counting the save as a revision of it.
+   */
+  const handleReferenceLabReportDateChange = useCallback(
+    (target: WorklistRow, value: string) => {
+      const key = worklistRowKey(target);
+      setReferenceLabReportDates((current) => ({ ...current, [key]: value }));
+      setRowStates((current) => ({
+        ...current,
+        [key]: nextRowState(current[key] || "EMPTY", {
+          type: value.trim() ? "DISPOSITION_CHANGED" : "DISPOSITION_CLEARED",
+        }),
+      }));
+    },
+    [],
   );
 
   const handleRejectDraftChange = useCallback(
@@ -827,6 +863,12 @@ const UnifiedResults: React.FC = () => {
       // FR-O1: the payload names and carries exactly this analysis — never
       // the page. Untouched rows cannot be re-submitted or defaulted.
       const item: Record<string, unknown> = { ...row, isModified: true };
+      // A referral saved against an already-saved result must leave that result
+      // exactly as stored. The row carries the value the test reports, which is
+      // rounded, so posting it back would quietly rewrite the stored one.
+      if (!writesResultValue(rowStates[worklistRowKey(row)] || "EMPTY")) {
+        item.resultValue = row.rawResultValue ?? row.resultValue;
+      }
       delete item.result;
       delete item.analysisNotes;
       // attachments live in order_attachment now (OGC-811); round-tripping
@@ -871,6 +913,15 @@ const UnifiedResults: React.FC = () => {
           referredTestId: row.testId,
         };
       }
+      // A result typed in for a test already at a reference laboratory: carry
+      // that laboratory's own report date so the referral records it.
+      const reportedOn = referenceLabReportDates[key];
+      if (row.referredOut && reportedOn && reportedOn.trim()) {
+        item.referralItem = {
+          ...(item.referralItem || {}),
+          referredReportDate: reportedOn.trim(),
+        };
+      }
       // R4 (FR-E3): reject disposition — legacy shadowRejected mechanics
       // (clears the value, writes the rejection-reason note, TechnicalRejected)
       const reject = rejectDrafts[key];
@@ -905,6 +956,13 @@ const UnifiedResults: React.FC = () => {
               delete next[key];
               return next;
             });
+            // The referral now holds the date, so the row must not carry it
+            // into its next save the way a draft would.
+            setReferenceLabReportDates((current) => {
+              const next = { ...current };
+              delete next[key];
+              return next;
+            });
             setRejectDrafts((current) => {
               const next = { ...current };
               delete next[key];
@@ -924,6 +982,7 @@ const UnifiedResults: React.FC = () => {
       noteDrafts,
       dilutionDrafts,
       referralDrafts,
+      referenceLabReportDates,
       rejectDrafts,
       interpretationDrafts,
       rowStates,
@@ -1283,6 +1342,14 @@ const UnifiedResults: React.FC = () => {
                         </TableCell>
                         <TableCell className="unifiedTestCell">
                           {row.testName}
+                          {/* Whoever types in a value phoned through by the
+                              reference laboratory reads this row, not the
+                              expanded panel, so the tag belongs here too. */}
+                          {row.referredOut && (
+                            <Tag type="cyan" size="sm">
+                              <FormattedMessage id="label.results.referredOut" />
+                            </Tag>
+                          )}
                         </TableCell>
                         <TableCell className="unifiedResultsSmallCell">
                           {methods.find((m) => m.id === row.testMethod)
@@ -1361,7 +1428,10 @@ const UnifiedResults: React.FC = () => {
                               recordType="RESULT"
                               recordId={row.analysisId}
                               onSign={() => handleSave(row)}
-                              disabled={blocksSaveOnPrecision(row)}
+                              disabled={
+                                writesResultValue(state) &&
+                                blocksSaveOnPrecision(row)
+                              }
                               size="sm"
                             >
                               <FormattedMessage id="label.results.save" />
@@ -1377,6 +1447,7 @@ const UnifiedResults: React.FC = () => {
                               domain={domain}
                               editable={isRowEditable(state)}
                               editing={isModifyingSavedResult(state)}
+                              testSectionId={selectedLabUnit || undefined}
                               loadedAnalyzerId={loadedAnalyzers[key]}
                               methods={methods}
                               analyzers={analyzers}
@@ -1430,6 +1501,12 @@ const UnifiedResults: React.FC = () => {
                               onReferralDraftChange={(draft) =>
                                 handleReferralDraftChange(row, draft)
                               }
+                              referenceLabReportDate={
+                                referenceLabReportDates[key] || ""
+                              }
+                              onReferenceLabReportDateChange={(value) =>
+                                handleReferenceLabReportDateChange(row, value)
+                              }
                               rejectReasons={rejectReasons}
                               rejectDraft={rejectDrafts[key] || null}
                               onRejectDraftChange={(draft) =>
@@ -1476,7 +1553,10 @@ const UnifiedResults: React.FC = () => {
                                       recordType="RESULT"
                                       recordId={row.analysisId}
                                       onSign={() => handleSave(row)}
-                                      disabled={blocksSaveOnPrecision(row)}
+                                      disabled={
+                                        writesResultValue(state) &&
+                                        blocksSaveOnPrecision(row)
+                                      }
                                       size="sm"
                                     >
                                       <FormattedMessage id="label.results.save" />
