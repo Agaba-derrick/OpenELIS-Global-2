@@ -76,6 +76,7 @@ public class UnassignedSampleItemServiceImpl implements UnassignedSampleItemServ
     @Transactional(readOnly = true)
     public SampleItemDTO getSampleItemById(String sampleItemId) {
         try {
+            // Get all referrals for this sample item
             List<Referral> referrals = referralDAO.getReferralsBySampleItemId(sampleItemId);
 
             if (referrals.isEmpty()) {
@@ -124,6 +125,9 @@ public class UnassignedSampleItemServiceImpl implements UnassignedSampleItemServ
                 ReferralTestDTO testDTO = buildReferralTestDTO(referral);
                 if (testDTO != null) {
                     referralTests.add(testDTO);
+                }
+                if (dto.getDestinationFacilityId() == null && referral.getOrganization() != null) {
+                    dto.setDestinationFacilityId(referral.getOrganization().getId());
                 }
             }
             dto.setReferralTests(referralTests);
@@ -178,6 +182,9 @@ public class UnassignedSampleItemServiceImpl implements UnassignedSampleItemServ
                 ReferralTestDTO testDTO = buildReferralTestDTO(referral);
                 if (testDTO != null) {
                     referralTests.add(testDTO);
+                }
+                if (dto.getDestinationFacilityId() == null && referral.getOrganization() != null) {
+                    dto.setDestinationFacilityId(referral.getOrganization().getId());
                 }
             }
 
