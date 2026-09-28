@@ -112,11 +112,11 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
             { "patient", "patient_seq" }, { "sample", "sample_seq" }, { "sample_item", "sample_item_seq" },
             { "sample_human", "sample_human_seq" }, { "analysis", "analysis_seq" }, { "result", "result_seq" },
             { "inventory_item", "inventory_item_seq" }, { "observation_history", "observation_history_seq" },
-            { "organization", "organization_seq" }, { "analyzer", "analyzer_seq" },
+            { "image", "image_seq" }, { "organization", "organization_seq" }, { "analyzer", "analyzer_seq" },
             { "referral_status_history", "referral_status_history_seq" }, { "calculation", "calculation_seq" },
             { "result_limits", "result_limits_seq" }, { "site_information", "site_information_seq" },
             { "reflex_rule", "reflex_rule_seq" }, { "reflex_rule_condition", "reflex_rule_condition_seq" },
-            { "reflex_rule_action", "reflex_rule_action_seq" } };
+            { "reflex_rule_action", "reflex_rule_action_seq" }, { "provider", "provider_seq" } };
 
     /**
      * Default sys_user_id for audit-emitting service calls in tests. Matches the
@@ -292,6 +292,14 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
                 // tests fail order-dependently. Restore the seed invariant after
                 // every load so no dataset can drop it.
                 ensureAuditSystemUser();
+                ensureReferenceSeedRows();
+
+                // The explicit allowlist above covers the legacy generators; this
+                // catches every other dataset-named table whose sequence follows the
+                // <table>_seq convention, so a fixture id can never collide with a
+                // later sequence-backed insert. After the commit: it reads the tables
+                // on its own connection, which the uncommitted TRUNCATE still locks.
+                resyncSequencesForTables(dataset.getTableNames());
 
                 // Refresh StatusService cache to pick up any status_of_sample changes
                 // from the loaded test data
@@ -334,6 +342,14 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
                     + "is_active, is_employee, lastupdated) "
                     + "SELECT nextval('system_user_seq'), 'TEST_ADMIN', 'admin', 'Doe', 'John', 'JD', 'Y', 'Y', now() "
                     + "WHERE NOT EXISTS (SELECT 1 FROM system_user WHERE login_name = 'admin')");
+            // A fixture that declares system_user without lastupdated leaves the
+            // Hibernate version null, and an entity with a null version reads as
+            // transient — so stamping a loaded SystemUser onto another entity's
+            // not-null association throws TransientPropertyValueException even
+            // though the row exists. Only ever seen in full-suite runs, because
+            // the DB-init rows all carry a version. Repairing the version changes
+            // no row count and no field a test asserts on.
+            stmt.execute("UPDATE system_user SET lastupdated = now() WHERE lastupdated IS NULL");
         }
     }
 
@@ -469,24 +485,29 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
     }
 
     /**
-     * Resync a Postgres sequence to {@code MAX(id)+1} of its table using an
-     * existing connection.
+     * Move a Postgres sequence forward to {@code MAX(id)+1} of its table using an
+     * existing connection. Never moves it backwards: several of these sequences are
+     * declared {@code CACHE 20}, so each pooled connection holds a block of values
+     * it has not handed out yet. Rewinding the sequence into a block another
+     * connection is still holding makes both connections issue the same id, and the
+     * loser fails on the primary key an insert or two later, in whichever test
+     * class happens to run next.
      */
     protected void resyncSequence(Connection conn, String sequence, String table) {
         try (Statement st = conn.createStatement()) {
             // id columns are numeric(10); setval needs a bigint.
-            st.execute("SELECT setval('" + sequence + "', (SELECT COALESCE(MAX(id), 0) + 1 FROM " + table
-                    + ")::bigint, false)");
+            st.execute("SELECT setval('" + sequence + "', GREATEST((SELECT last_value FROM " + sequence
+                    + "), (SELECT COALESCE(MAX(id), 0) + 1 FROM " + table + "))::bigint, false)");
         } catch (SQLException e) {
             throw new RuntimeException("Failed to resync sequence " + sequence + " from " + table, e);
         }
     }
 
     /**
-     * Resync a Postgres sequence to {@code MAX(id)+1} of its table. DBUnit fixture
-     * loads insert rows with explicit ids without advancing the sequence, so a
-     * later sequence-backed insert can collide with a seeded id depending on test
-     * order (e.g. {@code person_pk id=2 already exists}). Call this before
+     * Move a Postgres sequence forward to {@code MAX(id)+1} of its table. DBUnit
+     * fixture loads insert rows with explicit ids without advancing the sequence,
+     * so a later sequence-backed insert can collide with a seeded id depending on
+     * test order (e.g. {@code person_pk id=2 already exists}). Call this before
      * sequence-backed inserts into a fixture-seeded table.
      */
     protected void resyncSequence(String sequence, String table) {
@@ -494,6 +515,79 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
             resyncSequence(conn, sequence, table);
         } catch (SQLException e) {
             throw new RuntimeException("Failed to resync sequence " + sequence + " from " + table, e);
+        }
+    }
+
+    /**
+     * {@link #resyncSequence} for every dataset-named table whose backing sequence
+     * follows the {@code 
+     * 
+    <table>
+     * _seq} convention and whose id column is numeric. Tables with UUID ids or
+     * unconventionally named sequences are skipped — no worse than before, when
+     * nothing was resynced at all.
+     *
+     * <p>
+     * Forward-only, via GREATEST against the sequence's own current value: fixture
+     * rows never advance the sequence, so bumping it past MAX(id) fixes literal-id
+     * collisions — but pulling a high sequence DOWN to a just-truncated table's
+     * MAX+1 creates the opposite collision, because other tests insert literal low
+     * ids by raw JDBC outside any dataset load (dictionary id 8, history id 100009
+     * in CI). A sequence may only ever move up.
+     */
+    private void resyncSequencesForTables(String[] tableNames) throws SQLException {
+        try (Connection conn = dataSource.getConnection()) {
+            for (String table : tableNames) {
+                String tableName = table.toLowerCase();
+                String sequence = tableName + "_seq";
+                try (java.sql.PreparedStatement check = conn.prepareStatement("SELECT 1 FROM pg_class c"
+                        + " JOIN pg_namespace n ON n.oid = c.relnamespace"
+                        + " JOIN information_schema.columns col ON col.table_name = ? AND col.column_name = 'id'"
+                        + "   AND col.table_schema = 'clinlims' AND col.data_type IN ('numeric', 'integer', 'bigint')"
+                        + " WHERE c.relkind = 'S' AND c.relname = ? AND n.nspname = 'clinlims'")) {
+                    check.setString(1, tableName);
+                    check.setString(2, sequence);
+                    try (java.sql.ResultSet rs = check.executeQuery()) {
+                        if (!rs.next()) {
+                            continue;
+                        }
+                    }
+                }
+                try (Statement st = conn.createStatement()) {
+                    st.execute("SELECT setval('clinlims." + sequence + "', GREATEST("
+                            + "(SELECT COALESCE(MAX(id), 0) + 1 FROM clinlims." + tableName + ")::bigint, "
+                            + "(SELECT last_value FROM clinlims." + sequence + ")), false)");
+                }
+            }
+        }
+    }
+
+    /**
+     * Reference vocabularies the production Liquibase seed guarantees but a fixture
+     * load can silently gut: {@code executeDataSetWithStateManagement} truncates
+     * every table a dataset names and re-inserts only the dataset's own rows, so a
+     * dataset declaring a partial {@code type_of_test_result} leaves later suites
+     * without rows their inserts FK to (test_result_type_fk). Restore the seed
+     * after every load, like {@link #ensureAuditSystemUser}, by id so a fixture's
+     * own extra rows are left alone. {@code requester_type} needs no restore here:
+     * it is in {@link #PROTECTED_SEED_TABLES}, so a dataset declaring it is
+     * stripped before the truncation rather than after.
+     */
+    private void ensureReferenceSeedRows() throws SQLException {
+        try (Connection conn = dataSource.getConnection(); Statement st = conn.createStatement()) {
+            st.execute("INSERT INTO clinlims.type_of_test_result (id, test_result_type, description, lastupdated,"
+                    + " hl7_value) VALUES" + " (1, 'R', 'Remark', now(), 'TX'), (2, 'D', 'Dictionary', now(), 'TX'),"
+                    + " (3, 'T', 'Titer', now(), 'TX'), (4, 'N', 'Numeric', now(), 'NM'),"
+                    + " (5, 'A', 'Alpha,no range check', now(), 'TX'), (6, 'M', 'Multiselect', now(), 'TX'),"
+                    + " (7, 'C', 'Cascading Multiselect', now(), 'TX')" + " ON CONFLICT (id) DO NOTHING");
+            // The record-status pair every sample/patient status write FKs to.
+            // ObservationHistoryService caches the name->id mapping at first use, so
+            // after a fixture guts this table the cached ids (15/16) FK-fail on
+            // insert — restoring by exact id is the only repair that honours the
+            // cache. Fixtures only ever declare ids 1-5, so no conflict.
+            st.execute("INSERT INTO clinlims.observation_history_type (id, type_name, description, lastupdated)"
+                    + " VALUES (15, 'SampleRecordStatus', 'Sample Record Status', now()),"
+                    + " (16, 'PatientRecordStatus', 'Patient Record Status', now())" + " ON CONFLICT (id) DO NOTHING");
         }
     }
 
