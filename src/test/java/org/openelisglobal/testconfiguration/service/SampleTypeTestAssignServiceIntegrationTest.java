@@ -32,13 +32,19 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
     }
 
     @Test
-    public void updateShouldInsertNewTypeOfSampleTestWhenGivenValidInputs() {
-        List<TypeOfSampleTest> preCondition = typeOfSampleTestService.getTypeOfSampleTestsForSampleType("9901");
-        assertEquals("Fixture must start with no assignments for Urine (9901)", 0, preCondition.size());
+    public void update_shouldInsertNewTypeOfSampleTest_whenGivenValidInputs() {
+        List<TypeOfSampleTest> preConditionSampleTypeLinks = typeOfSampleTestService
+                .getTypeOfSampleTestsForSampleType("9901");
+        assertEquals("Fixture must start with no assignments for Urine (9901)", 0, preConditionSampleTypeLinks.size());
+
+        List<TypeOfSampleTest> preConditionTestLinks = typeOfSampleTestService.getTypeOfSampleTestsForTest("9900");
+        assertEquals("Fixture must start with 1 assignment for GeneXpert (9900)", 1, preConditionTestLinks.size());
 
         TypeOfSample sampleType = typeOfSampleService.get("9901");
         assertEquals("Pre-condition: sample type description must be Urine", "Urine", sampleType.getDescription());
         assertEquals("Pre-condition: sample type abbreviation must be U", "U", sampleType.getLocalAbbreviation());
+
+        sampleType.setLocalAbbreviation("should_not_save");
 
         sampleTypeTestAssignService.update(sampleType, "9900", Collections.emptyList(), sampleType.getId(), false,
                 false, null, "1");
@@ -48,14 +54,25 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
         assertEquals("Assigned test ID must be GeneXpert (9900)", "9900", testsForSampleType.get(0).getTestId());
         assertEquals("Sample type ID on the new assignment must be Urine (9901)", "9901",
                 testsForSampleType.get(0).getTypeOfSampleId());
+
+        List<TypeOfSampleTest> postUpdateTestLinks = typeOfSampleTestService.getTypeOfSampleTestsForTest("9900");
+        assertEquals("Exactly 2 assignments must exist for GeneXpert (9900) after insert", 2,
+                postUpdateTestLinks.size());
+
+        TypeOfSample reFetchedSampleType = typeOfSampleService.get("9901");
+        assertEquals("Sample type local abbreviation must remain unchanged as 'U' when updateTypeOfSample is false",
+                "U", reFetchedSampleType.getLocalAbbreviation());
     }
 
     @Test
-    public void updateShouldDeleteExistingTypeOfSampleTestsAndInsertNewAssignmentWhenDeleteFlagIsTrue() {
+    public void update_shouldDeleteExistingLinksAndInsertNewAssignment_whenDeleteFlagIsTrue() {
         List<TypeOfSampleTest> existingLinks = typeOfSampleTestService.getTypeOfSampleTestsForSampleType("9900");
         assertEquals("Fixture must start with exactly 1 assignment for Blood (9900)", 1, existingLinks.size());
         assertEquals("Existing assignment ID must be 9900", "9900", existingLinks.get(0).getId());
         assertEquals("Existing assignment must link to GeneXpert (9900)", "9900", existingLinks.get(0).getTestId());
+
+        List<TypeOfSampleTest> preConditionTestLinks = typeOfSampleTestService.getTypeOfSampleTestsForTest("9901");
+        assertEquals("Fixture must start with 0 assignments for SputumCulture (9901)", 0, preConditionTestLinks.size());
 
         TypeOfSample sampleType = typeOfSampleService.get("9900");
         List<String> idsToDelete = new ArrayList<>();
@@ -72,7 +89,10 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
     }
 
     @Test
-    public void updateShouldUpdateTypeOfSampleDescriptionWhenUpdateFlagIsTrue() {
+    public void update_shouldUpdateTypeOfSampleDescription_whenUpdateFlagIsTrue() {
+        List<TypeOfSampleTest> preUpdateLinks = typeOfSampleTestService.getTypeOfSampleTestsForSampleType("9900");
+        assertEquals("Pre-condition: fixture must start with 1 assignment for Blood (9900)", 1, preUpdateLinks.size());
+
         TypeOfSample sampleType = typeOfSampleService.get("9900");
         assertEquals("Pre-condition: description must be Blood before update", "Blood", sampleType.getDescription());
 
@@ -91,12 +111,19 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
     }
 
     @Test
-    public void updateShouldDeactivateTypeOfSampleWhenDeactivateObjectIsProvided() {
+    public void update_shouldDeactivateTypeOfSample_whenDeactivateObjectIsProvided() {
         TypeOfSample preCondition = typeOfSampleService.get("9902");
         assertEquals("Pre-condition: Legacy Sputum (9902) must be active before deactivation", true,
                 preCondition.isActive());
         assertEquals("Pre-condition: Legacy Sputum description must be 'Legacy Sputum'", "Legacy Sputum",
                 preCondition.getDescription());
+
+        List<TypeOfSampleTest> preConditionTestLinks = typeOfSampleTestService.getTypeOfSampleTestsForTest("9900");
+        assertEquals("Fixture must start with 1 assignment for test GeneXpert (9900)", 1, preConditionTestLinks.size());
+
+        List<TypeOfSampleTest> preConditionSampleLinks = typeOfSampleTestService
+                .getTypeOfSampleTestsForSampleType("9901");
+        assertEquals("Fixture must start with 0 assignments for Urine (9901)", 0, preConditionSampleLinks.size());
 
         TypeOfSample sampleType = typeOfSampleService.get("9901");
         TypeOfSample deActivateTypeOfSample = typeOfSampleService.get("9902");
@@ -111,5 +138,9 @@ public class SampleTypeTestAssignServiceIntegrationTest extends BaseWebContextSe
                 updatedDeactivated.getDescription());
         assertEquals("Legacy Sputum (9902) domain must remain 'E' after deactivation", "E",
                 updatedDeactivated.getDomain());
+
+        List<TypeOfSampleTest> postUpdateTestLinks = typeOfSampleTestService.getTypeOfSampleTestsForTest("9900");
+        assertEquals("Exactly 2 assignments must exist for test GeneXpert (9900) after update", 2,
+                postUpdateTestLinks.size());
     }
 }
