@@ -27,6 +27,14 @@ const password = process.env.TEST_PASS || "adminADMIN!";
  * No direct database access. All interactions through UI or REST API.
  */
 
+// Restore the site setting even when a step fails, so later specs in the run
+// do not meet signing dialogs they never asked for.
+test.afterEach(async ({ page }) => {
+  const siteInfo = new SiteInformationPage(page);
+  await siteInfo.goto();
+  await siteInfo.setBooleanSetting("electronicSignatureEnabled", false);
+});
+
 test("E-Signature — full result entry and validation flow", async ({
   page,
 }) => {
@@ -232,25 +240,19 @@ test("E-Signature — full result entry and validation flow", async ({
     // In password-only mode, just enter password
     await modal.locator('input[type="password"]').fill(password);
 
-    // A successful release reloads the validation page; wait for that
-    // navigation so the cleanup step's own navigation cannot collide with it.
-    const queueReloaded = page.waitForEvent("framenavigated", {
-      predicate: (frame) =>
-        frame === page.mainFrame() && frame.url().includes("/validation"),
-      timeout: LONG_TIMEOUT,
-    });
+    // A successful release rereads the queue in place. Sync on that read so
+    // the cleanup step's navigation cannot collide with it, then assert on
+    // what the page shows.
+    const queueReread = page.waitForResponse(
+      (response) =>
+        response.url().includes("/rest/AccessionValidation") &&
+        response.request().method() === "GET",
+      { timeout: LONG_TIMEOUT },
+    );
     await modal.getByRole("button", { name: /sign/i }).click();
 
     await expect(modal).toBeHidden({ timeout: LONG_TIMEOUT });
-    await queueReloaded;
-    await page.waitForLoadState("domcontentloaded");
-  });
-
-  // ── Cleanup: Restore original e-sig setting ───────────────────
-
-  await test.step("Disable e-signatures (cleanup)", async () => {
-    const siteInfo = new SiteInformationPage(page);
-    await siteInfo.goto();
-    await siteInfo.setBooleanSetting("electronicSignatureEnabled", false);
+    await queueReread;
+    await expect(page).toHaveURL(/\/validation/);
   });
 });

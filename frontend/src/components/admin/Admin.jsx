@@ -19,17 +19,17 @@ import { CommonProperties } from "./menu/CommonProperties";
 import ConfigMenuDisplay from "./generalConfig/common/ConfigMenuDisplay";
 import SiteBrandingConfig from "./generalConfig/siteBranding/SiteBrandingConfig";
 import ProviderMenu from "./ProviderMenu/ProviderMenu";
+import ProviderTitleMenu from "./providerTitle/ProviderTitleMenu";
 import DataExportStatus from "./DataExportStatus/DataExportStatus";
 import LabelPresetList from "./labelPresets/LabelPresetList";
 import { Redirect } from "react-router-dom";
-import AnalyzerTestName from "./analyzerTestName/AnalyzerTestName";
-import PluginList from "./pluginFile/PluginFile";
 import ResultReportingConfiguration from "./ResultReportingConfiguration/ResultReportingConfiguration";
 import TestCatalog from "./testManagement/ViewTestCatalog";
 import TestCatalogEditor from "./testCatalog/TestCatalogEditor";
 import PanelEditor from "./testCatalog/PanelEditor";
 import CombinedTestEditor from "./testCatalog/CombinedTestEditor";
 import TestCatalogList from "./testCatalog/TestCatalogList";
+import CatalogImport from "./catalogImport/CatalogImport";
 import PushNotificationPage from "../notifications/PushNotificationPage.jsx";
 import OrganizationManagement from "./OrganizationManagement/OrganizationManagement";
 import OrganizationAddModify from "./OrganizationManagement/OrganizationAddModify";
@@ -84,12 +84,18 @@ import DatabaseCleaning from "./databaseCleaning/DatabaseCleaning";
 import VectorSurveillanceSetup from "./vectorSurveillance/VectorSurveillanceSetup";
 import SampleAcceptanceChecklistSetup from "./sampleAcceptance/SampleAcceptanceChecklistSetup";
 import AdminDashboard from "./AdminDashboard";
+import StuckAnalyzerEvents from "./StuckAnalyzerEvents";
+import MicrobiologyReferenceAdmin from "./microbiologyReference/MicrobiologyReferenceAdmin";
 
 function Admin() {
   const { path } = useRouteMatch();
 
   return (
     <Switch>
+      <Route
+        path={`${path}/MicrobiologyReference/:section/:detailId?`}
+        component={MicrobiologyReferenceAdmin}
+      />
       <Route
         path={`${path}/calendarManagement`}
         component={CalendarManagement}
@@ -98,6 +104,11 @@ function Admin() {
       <Route path={`${path}/calculatedValue`} component={CalculatedValue} />
       <Route path={`${path}/TestCatalog`} component={TestCatalog} />
       <Route path={`${path}/TestCatalogList`} component={TestCatalogList} />
+      <Route path={`${path}/CatalogImport`} component={CatalogImport} />
+      <Route
+        path={`${path}/stuckAnalyzerEvents`}
+        render={() => <StuckAnalyzerEvents basePath={path} />}
+      />
       <Route
         path={`${path}/TestCatalogEditor/group/:ids/:section?`}
         component={CombinedTestEditor}
@@ -113,11 +124,14 @@ function Admin() {
         component={TestCatalogEditor}
       />
       <Route path={`${path}/MethodManagement`} component={ManageMethod} />
-      <Route path={`${path}/AnalyzerTestName`} component={AnalyzerTestName} />
       <Route path={`${path}/labNumber`} component={LabNumberManagement} />
       <Route path={`${path}/labelPresets`} component={LabelPresetList} />
+      {/* OGC-781: the Programs rework keeps the live /program URL so bookmarks
+          and deep links survive; /programV2 was its pre-release alias. */}
+      <Redirect from={`${path}/programV2`} to={`${path}/program`} />
       <Route path={`${path}/program`} component={ProgramManagement} />
       <Route path={`${path}/providerMenu`} component={ProviderMenu} />
+      <Route path={`${path}/providerTitleMenu`} component={ProviderTitleMenu} />
       <Route path={`${path}/dataExportStatus`} component={DataExportStatus} />
       <Route path={`${path}/NotifyUser`} component={PushNotificationPage} />
       <Redirect
@@ -251,90 +265,81 @@ function Admin() {
       />
       <Route
         path={`${path}/NonConformityConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="NonConformityConfigurationMenu"
-            label="Non Conformity Configuration Menu"
             id="sidenav.label.admin.formEntry.nonconformityconfig"
           />
         )}
       />
       <Route
         path={`${path}/MenuStatementConfigMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="MenuStatementConfigMenu"
-            label="Menu Statement Configuration Menu"
             id="sidenav.label.admin.formEntry.menustatementconfig"
           />
         )}
       />
       <Route
         path={`${path}/ValidationConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="ValidationConfigurationMenu"
-            label="Validation Configuration Menu"
             id="sidenav.label.admin.formEntry.validationconfig"
           />
         )}
       />
       <Route
         path={`${path}/SampleEntryConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="SampleEntryConfigMenu"
-            label="Sample Entry Configuration Menu"
             id="sidenav.label.admin.formEntry.sampleEntryconfig"
           />
         )}
       />
       <Route
         path={`${path}/WorkPlanConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="WorkplanConfigurationMenu"
-            label="WorkPlan Configuration Menu"
             id="sidenav.label.admin.formEntry.Workplanconfig"
           />
         )}
       />
       <Route
         path={`${path}/SiteInformationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="SiteInformationMenu"
-            label="Site Information Menu"
             id="sidenav.label.admin.formEntry.siteInfoconfig"
           />
         )}
       />
       <Route
         path={`${path}/ResultConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="ResultConfigurationMenu"
-            label="Result Configuration Menu"
             id="sidenav.label.admin.formEntry.resultConfig"
           />
         )}
       />
       <Route
         path={`${path}/PatientConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="PatientConfigurationMenu"
-            label="Patient Configuration Menu"
             id="sidenav.label.admin.formEntry.patientconfig"
           />
         )}
       />
       <Route
         path={`${path}/PrintedReportsConfigurationMenu`}
-        component={() => (
+        render={() => (
           <ConfigMenuDisplay
             menuType="PrintedReportsConfigurationMenu"
-            label="PrintedReports Configuration Menu"
             id="sidenav.label.admin.formEntry.PrintedReportsconfig"
           />
         )}
@@ -352,7 +357,6 @@ function Admin() {
         component={NotificationTriggerConfig}
       />
       <Route path={`${path}/DictionaryMenu`} component={DictionaryManagement} />
-      <Route path={`${path}/PluginFile`} component={PluginList} />
       <Route
         path={`${path}/SearchIndexManagement`}
         component={SearchIndexManagement}

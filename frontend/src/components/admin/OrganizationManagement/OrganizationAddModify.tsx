@@ -30,7 +30,7 @@ import {
   NotificationKinds,
 } from "../../common/CustomNotification";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
-import { useLocation } from "react-router-dom";
+import { useHistory, useLocation } from "react-router-dom";
 import PageBreadCrumb from "../../common/PageBreadCrumb";
 import AutoComplete from "../../common/AutoComplete";
 
@@ -154,6 +154,7 @@ function OrganizationAddModify() {
   >([]);
 
   const location = useLocation();
+  const history = useHistory();
   const ID = (() => {
     const search = location.search;
     if (search) {
@@ -174,7 +175,7 @@ function OrganizationAddModify() {
       );
     } else {
       setTimeout(() => {
-        window.location.assign("/MasterListsPage/organizationManagement");
+        history.replace("/MasterListsPage/organizationManagement");
       }, 1000);
     }
     return () => {
@@ -470,7 +471,7 @@ function OrganizationAddModify() {
       kind: NotificationKinds.success,
     });
     setTimeout(() => {
-      window.location.assign("/MasterListsPage/organizationManagement");
+      history.push("/MasterListsPage/organizationManagement");
     }, 200);
     setNotificationVisible(true);
   };
@@ -546,9 +547,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-name"
+                      labelText={intl.formatMessage({
+                        id: "organization.organizationName",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder",
                       })}
@@ -573,9 +577,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-prefix"
+                      labelText={intl.formatMessage({
+                        id: "organization.short.CI",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       maxLength={15}
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder",
@@ -600,9 +607,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="is-active"
+                      labelText={intl.formatMessage({
+                        id: "organization.isActive",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder.active",
                       })}
@@ -625,9 +635,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-internet-address"
+                      labelText={intl.formatMessage({
+                        id: "organization.internetaddress",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder.internetAddress",
                       })}
@@ -651,9 +664,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-street-address"
+                      labelText={intl.formatMessage({
+                        id: "organization.streetAddress",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       maxLength={15}
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder",
@@ -679,9 +695,12 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-city"
+                      labelText={intl.formatMessage({
+                        id: "organization.city",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
-                      labelText=""
                       maxLength={15}
                       placeholder={intl.formatMessage({
                         id: "organization.add.placeholder",
@@ -703,6 +722,10 @@ function OrganizationAddModify() {
                   <Column lg={8} md={4} sm={4}>
                     <TextInput
                       id="org-clia-number"
+                      labelText={intl.formatMessage({
+                        id: "organization.clia.number",
+                      })}
+                      hideLabel
                       className="defalut"
                       type="text"
                       placeholder={intl.formatMessage({
@@ -910,9 +933,7 @@ function OrganizationAddModify() {
               </Button>{" "}
               <Button
                 onClick={() =>
-                  window.location.assign(
-                    "/MasterListsPage/organizationManagement",
-                  )
+                  history.push("/MasterListsPage/organizationManagement")
                 }
                 kind="tertiary"
                 type="button"

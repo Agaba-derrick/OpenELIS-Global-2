@@ -1,4 +1,11 @@
-import React, { useContext, useEffect, useState, useRef, useMemo } from "react";
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useMemo,
+} from "react";
 import { FormattedMessage, injectIntl, useIntl } from "react-intl";
 import "../Style.css";
 import {
@@ -8,31 +15,39 @@ import {
   Roles,
 } from "../utils/Utils";
 import {
-  Form,
-  TextInput,
-  TextArea,
-  Checkbox,
+  ActionableNotification,
   Button,
-  Grid,
+  Checkbox,
   Column,
-  Stack,
+  Form,
+  Grid,
+  Loading,
   Pagination,
   Select,
   SelectItem,
-  Loading,
-  Link,
+  Stack,
+  TextArea,
+  TextInput,
+  Tooltip,
   Tag,
 } from "@carbon/react";
-import { Copy, ArrowLeft, ArrowRight } from "@carbon/icons-react";
+import ServerPageArrows from "../common/ServerPageArrows";
+import { Copy } from "@carbon/icons-react";
+import {
+  serverPageArrowsProps,
+  serverPageSizeOf,
+  serverPaginationProps,
+} from "../utils/serverPaging";
+import SampleKindTag from "./SampleKindTag";
 import CustomLabNumberInput from "../common/CustomLabNumberInput";
 import DataTable from "react-data-table-component";
+import { displayRange } from "../common/rangeNotApplied";
 import { Formik, Field } from "formik";
 import { jpGet, jpSet } from "../utils/JsonPath";
 import SearchResultFormValues from "../formModel/innitialValues/SearchResultFormValues";
 import { AlertDialog, NotificationKinds } from "../common/CustomNotification";
 import { NotificationContext } from "../layout/Layout";
 import SearchPatientForm from "../patient/SearchPatientForm";
-import SendToAnalyzerButton from "../modifyOrder/SendToAnalyzerButton";
 import { ConfigurationContext } from "../layout/Layout";
 import config from "../../config.json";
 import CustomDatePicker from "../common/CustomDatePicker";
@@ -48,8 +63,17 @@ import { isStorageAssignmentSuccess } from "../storage/LocationPicker/storageAss
 import ResultMultiSelect from "../common/multiSelect";
 import CascadingMultiSelect from "../common/cascadingMultiSelect";
 import EQABadge from "../eqa/EQABadge";
+import { classifyNumericResult, numericResultStyle } from "./numericResultFlag";
+import {
+  exceedsDecimalPlaces,
+  normalizeScientificNotation,
+  roundMantissa,
+} from "./scientificNotation";
+import { FlagChip } from "./unified/flags";
+import "./unified/unified-results.scss";
 import InlineNceForm from "../nonconform/common/InlineNceForm";
-import { Warning } from "@carbon/icons-react";
+import CriticalCallbackModal from "./CriticalCallbackModal";
+import { Warning, Phone } from "@carbon/icons-react";
 import ESignatureButton, {
   SignatureMeaning,
 } from "../esignature/ESignatureButton";
@@ -78,6 +102,10 @@ function ResultSearchPage() {
     testResult: [],
   });
   const [resultForm, setResultForm] = useState(originalResultForm);
+  // A response replaces the complete work queue.  SearchResults has draft
+  // state for rows (including text inputs), so it gets a fresh editing session
+  // only at this response boundary, not on each individual field edit.
+  const [resultSetVersion, setResultSetVersion] = useState(0);
   const [searchBy, setSearchBy] = useState({ type: "", doRange: false });
   const [param, setParam] = useState("&accessionNumber=");
 
@@ -90,7 +118,7 @@ function ResultSearchPage() {
   useEffect(() => {
     setPoolLotFilter("");
     setPoolIdFilter("");
-  }, [resultForm]);
+  }, [resultSetVersion]);
 
   const allRows = resultForm?.testResult ?? [];
 
@@ -180,30 +208,53 @@ function ResultSearchPage() {
   }, [allRows, poolLotFilter, poolIdFilter]);
   // ── End pool filter ─────────────────────────────────────────────────────────
 
+  // The rows a full server page holds, read off the responses; Carbon's items
+  // per page is pinned to it so Carbon's page is the server's page.
+  const [serverPageSize, setServerPageSize] = useState();
+
   const setResults = (resultForm) => {
     setOriginalResultForm(resultForm);
     setResultForm(resultForm);
+    setServerPageSize((previous) =>
+      serverPageSizeOf(
+        resultForm.paging,
+        resultForm.testResult?.length ?? 0,
+        previous,
+      ),
+    );
+    setResultSetVersion((version) => version + 1);
   };
 
-  // Single-accession context → offer LIS-initiated dispatch of this order to an
-  // analyzer. Derived from the active accession-number search param (set when the
-  // page is loaded/searched by accession, e.g. /AccessionResults?accessionNumber=…);
-  // suppressed for range/logbook/patient searches that span multiple accessions.
-  const accessionMatch = /accessionNumber=([^&]+)/.exec(param || "");
-  const loadedAccession =
-    accessionMatch &&
-    accessionMatch[1] &&
-    !(param || "").includes("upperAccessionNumber")
-      ? decodeURIComponent(accessionMatch[1])
-      : "";
-  const hasResults = (resultForm?.testResult?.length || 0) > 0;
-
+  /**
+   * The results table re-runs the current search after a write instead of
+   * sending the browser back to the URL it is already on, and asks for a
+   * server page when Carbon's pagination moves. SearchResultForm owns the
+   * search and publishes both here whenever the endpoint changes.
+   */
+  const refreshRun = useRef(null);
+  const registerRefresh = useCallback((run) => {
+    refreshRun.current = run;
+  }, []);
+  const refreshResults = useCallback(
+    (pageToReopen) => refreshRun.current?.(pageToReopen),
+    [],
+  );
+  const pageLoader = useRef(null);
+  const registerPageLoader = useCallback((run) => {
+    pageLoader.current = run;
+  }, []);
+  const loadPage = useCallback(
+    (pageNumber) => pageLoader.current?.(pageNumber),
+    [],
+  );
   return (
     <>
       <SearchResultForm
         setParam={setParam}
         setSearchBy={setSearchBy}
         setResults={setResults}
+        registerRefresh={registerRefresh}
+        registerPageLoader={registerPageLoader}
         poolLotOptions={poolLotOptions}
         poolOptions={poolOptions}
         poolLotFilter={poolLotFilter}
@@ -217,21 +268,16 @@ function ResultSearchPage() {
         totalRows={allRows.length}
         filteredRowCount={filteredRowCount}
       />
-      {loadedAccession && hasResults && (
-        <Grid>
-          <Column lg={16} md={8} sm={4}>
-            <div style={{ margin: "0.5rem 0" }}>
-              <SendToAnalyzerButton accessionNumber={loadedAccession} />
-            </div>
-          </Column>
-        </Grid>
-      )}
       <SearchResults
+        key={`result-set-${resultSetVersion}`}
         extraParams={param}
         searchBy={searchBy}
         results={resultForm}
         setResultForm={setResultForm}
         refreshOnSubmit={true}
+        refreshResults={refreshResults}
+        serverPageSize={serverPageSize}
+        loadPage={loadPage}
         poolLotFilter={poolLotFilter}
         poolIdFilter={poolIdFilter}
       />
@@ -262,21 +308,21 @@ export function SearchResultForm(props) {
   const [searchFormValues, setSearchFormValues] = useState(
     SearchResultFormValues,
   );
-  const [nextPage, setNextPage] = useState(null);
-  const [previousPage, setPreviousPage] = useState(null);
-  const [pagination, setPagination] = useState(false);
-  const [currentApiPage, setCurrentApiPage] = useState(null);
-  const [totalApiPages, setTotalApiPages] = useState(null);
   const [url, setUrl] = useState("");
   const componentMounted = useRef(false);
 
   const setResultsWithId = (results) => {
+    if (!results) {
+      setLoading(false);
+      return;
+    }
     if (results.testResult) {
       // /AccessionResults is a patient-result view; QC duplicates/blanks belong
       // on the QC review surfaces (/LogbookResults, /RangeResults) instead.
-      if (window.location.pathname === "/AccessionResults") {
-        results.testResult = results.testResult.filter((row) => !row.qcType);
-      }
+      const visibleResults =
+        window.location.pathname === "/AccessionResults"
+          ? results.testResult.filter((row) => !row.qcType)
+          : results.testResult;
       // Group each QC row directly beneath its client parent so the table
       // reads as parent → children rather than scattering BLANKs to the end.
       // Key 1: groupId binds QC rows (parentSampleItemId) to their parent
@@ -287,37 +333,23 @@ export function SearchResultForm(props) {
         Number.MAX_SAFE_INTEGER;
       const seqKey = (row) =>
         parseInt(row.sequenceNumber, 10) || Number.MAX_SAFE_INTEGER;
-      results.testResult = results.testResult.slice().sort((a, b) => {
-        return (
-          groupKey(a) - groupKey(b) ||
-          (a.qcType ? 1 : 0) - (b.qcType ? 1 : 0) ||
-          seqKey(a) - seqKey(b)
-        );
-      });
-      var i = 0;
-      if (results.testResult) {
-        results.testResult.forEach((item) => (item.id = "" + i++));
-      }
-      props.setResults?.(results);
+      const testResult = visibleResults
+        .slice()
+        .sort(
+          (a, b) =>
+            groupKey(a) - groupKey(b) ||
+            (a.qcType ? 1 : 0) - (b.qcType ? 1 : 0) ||
+            seqKey(a) - seqKey(b),
+        )
+        // The form payload addresses rows by position. Keep that compatibility
+        // value in the response-derived form without mutating the response.
+        .map((item, index) => ({
+          ...item,
+          id: String(index),
+          note: item.note ?? "",
+        }));
+      props.setResults?.({ ...results, testResult });
       setLoading(false);
-      if (results.paging) {
-        var { totalPages, currentPage } = results.paging;
-        if (totalPages > 1) {
-          setPagination(true);
-          setCurrentApiPage(currentPage);
-          setTotalApiPages(totalPages);
-          if (parseInt(currentPage) < parseInt(totalPages)) {
-            setNextPage(parseInt(currentPage) + 1);
-          } else {
-            setNextPage(null);
-          }
-          if (parseInt(currentPage) > 1) {
-            setPreviousPage(parseInt(currentPage) - 1);
-          } else {
-            setPreviousPage(null);
-          }
-        }
-      }
     } else {
       props.setResults?.({ testResult: [] });
       addNotification({
@@ -332,20 +364,29 @@ export function SearchResultForm(props) {
 
   const intl = useIntl();
 
-  const loadNextResultsPage = () => {
+  /** One server page, the same request for the arrows and for Carbon. */
+  const loadResultsPage = (pageNumber) => {
     setLoading(true);
-    getFromOpenElisServer(url + "&page=" + nextPage, setResultsWithId);
+    getFromOpenElisServer(url + "&page=" + pageNumber, setResultsWithId);
   };
 
-  const loadPreviousResultsPage = () => {
+  /**
+   * Re-runs the search, so the server rebuilds its pages, and reopens the page
+   * the user was on when the rebuilt list still has it.
+   */
+  const refreshResults = (pageToReopen) => {
     setLoading(true);
-    getFromOpenElisServer(url + "&page=" + previousPage, setResultsWithId);
+    getFromOpenElisServer(url, (results) => {
+      const totalPages = Number(results?.paging?.totalPages) || 1;
+      if (pageToReopen > 1 && pageToReopen <= totalPages) {
+        getFromOpenElisServer(url + "&page=" + pageToReopen, setResultsWithId);
+      } else {
+        setResultsWithId(results);
+      }
+    });
   };
 
   const getSelectedPatient = (patient) => {
-    setNextPage(null);
-    setPreviousPage(null);
-    setPagination(false);
     setPatient(patient);
   };
   useEffect(() => {
@@ -390,15 +431,15 @@ export function SearchResultForm(props) {
       "&testSectionId=" +
       values.unitType +
       "&collectionDate=" +
-      values.collectionDate +
+      (values.collectionDate || "") +
       "&recievedDate=" +
-      values.recievedDate +
+      (values.recievedDate || "") +
       "&selectedTest=" +
-      values.testName +
+      (values.testName || "") +
       "&selectedSampleStatus=" +
-      values.sampleStatusType +
+      (values.sampleStatusType || "") +
       "&selectedAnalysisStatus=" +
-      values.analysisStatus +
+      (values.analysisStatus || "") +
       "&doRange=" +
       searchBy.doRange +
       "&finished=" +
@@ -440,11 +481,16 @@ export function SearchResultForm(props) {
   };
 
   const handleSubmit = (values) => {
-    setNextPage(null);
-    setPreviousPage(null);
-    setPagination(false);
     querySearch(values);
   };
+
+  useEffect(() => {
+    if (!props.registerRefresh) {
+      return;
+    }
+    props.registerRefresh(url ? refreshResults : null);
+    props.registerPageLoader?.(url ? loadResultsPage : null);
+  }, [url, props.registerRefresh, props.registerPageLoader]);
 
   const getTests = (tests) => {
     if (componentMounted.current) {
@@ -469,9 +515,6 @@ export function SearchResultForm(props) {
   };
 
   const submitOnSelect = (e) => {
-    setNextPage(null);
-    setPreviousPage(null);
-    setPagination(false);
     var values = { unitType: e.target.value };
     handleSubmit(values);
   };
@@ -549,7 +592,8 @@ export function SearchResultForm(props) {
     var doRange = "";
     if (window.location.pathname == "/result") {
       displayFormType = new URLSearchParams(window.location.search).get("type");
-      doRange = new URLSearchParams(window.location.search).get("doRange");
+      doRange =
+        new URLSearchParams(window.location.search).get("doRange") || "false";
     } else if (window.location.pathname == "/LogbookResults") {
       displayFormType = "unit";
       doRange = "false";
@@ -622,9 +666,6 @@ export function SearchResultForm(props) {
       setSearchFormValues(searchValues);
       querySearch(searchValues);
     }
-    setNextPage(null);
-    setPreviousPage(null);
-    setPagination(false);
   }, [searchBy]);
 
   return (
@@ -1034,50 +1075,6 @@ export function SearchResultForm(props) {
           </Grid>
         </>
       )}
-
-      <>
-        {pagination && (
-          <Grid>
-            <Column lg={16}>
-              {" "}
-              <br /> <br />
-            </Column>
-            <Column lg={14} />
-            <Column
-              lg={2}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: "10px",
-                width: "110%",
-              }}
-            >
-              <Link>
-                {currentApiPage} / {totalApiPages}
-              </Link>
-              <div style={{ display: "flex", gap: "10px" }}>
-                <Button
-                  hasIconOnly
-                  id="loadpreviousresults"
-                  onClick={loadPreviousResultsPage}
-                  disabled={previousPage != null ? false : true}
-                  renderIcon={ArrowLeft}
-                  iconDescription="previous"
-                ></Button>
-                <Button
-                  hasIconOnly
-                  id="loadnextresults"
-                  onClick={loadNextResultsPage}
-                  disabled={nextPage != null ? false : true}
-                  renderIcon={ArrowRight}
-                  iconDescription="next"
-                ></Button>
-              </div>
-            </Column>
-          </Grid>
-        )}
-      </>
     </>
   );
 }
@@ -1089,8 +1086,6 @@ export function SearchResults(props) {
 
   const intl = useIntl();
 
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
   const [acceptAsIs, setAcceptAsIs] = useState([]);
   const [referalOrganizations, setReferalOrganizations] = useState([]);
   const [methodsByTestId, setMethodsByTestId] = useState({});
@@ -1107,6 +1102,15 @@ export function SearchResults(props) {
   const [nceFormOpenRow, setNceFormOpenRow] = useState(null); // Track which row has NCE form open
   // Which analysisId's storage-picker modal is open (one at a time).
   const [storageModalRow, setStorageModalRow] = useState(null);
+  // Which row's critical-callback modal is open (one at a time; OGC-714).
+  const [callbackModalRow, setCallbackModalRow] = useState(null);
+  // Rows with a callback logged (keyed by row.id). Drives the needs-callback
+  // banner: seeded from the durable record (/rest/critical-callback/
+  // logged-results) when results load, updated in place on a new log.
+  const [loggedCallbackRows, setLoggedCallbackRows] = useState({});
+  // Eligible analysts per EQA scheme on this page. Keyed by scheme because one
+  // grid can show samples from two schemes with different lists.
+  const [eqaAnalysts, setEqaAnalysts] = useState({});
 
   const componentMounted = useRef(false);
   const holdingTimeNotifiedRows = useRef(new Set());
@@ -1196,21 +1200,68 @@ export function SearchResults(props) {
           row.resultValue = validation.newValue;
           validation.style = {
             ...validation?.style,
-            borderColor: validation.isCritical
-              ? "orange"
-              : validation.isInvalid
-                ? "red"
-                : "",
-            background: validation.outsideValid
-              ? "#ffa0a0"
-              : validation.outsideNormal
-                ? "#ffffa0"
-                : "var(--cds-field)",
+            ...numericResultStyle(validation),
           };
         }
       });
       setValidationState(newValidationState);
     }
+  }, [props.results]);
+
+  // Seed the needs-callback banner from the durable record: saved results on
+  // this page that already have a callback logged (any session, any user) —
+  // a page reload must not resurrect the banner for already-called criticals.
+  useEffect(() => {
+    const rows = (props.results?.testResult || []).filter(
+      (row) => row.resultId,
+    );
+    if (rows.length === 0) {
+      return;
+    }
+    const ids = rows.map((row) => row.resultId).join(",");
+    getFromOpenElisServer(
+      `/rest/critical-callback/logged-results?resultIds=${ids}`,
+      (logged) => {
+        if (!componentMounted.current || !Array.isArray(logged)) {
+          return;
+        }
+        const loggedSet = new Set(logged.map(String));
+        const seeded = {};
+        rows.forEach((row) => {
+          if (loggedSet.has(String(row.resultId))) {
+            seeded[row.id] = true;
+          }
+        });
+        if (Object.keys(seeded).length > 0) {
+          setLoggedCallbackRows((prev) => ({ ...prev, ...seeded }));
+        }
+      },
+    );
+  }, [props.results]);
+
+  // One fetch per scheme present, and only when a row asks for the column. The
+  // server decides what "eligible" means: an opt-in list where the scheme has
+  // one, every active user where it does not.
+  useEffect(() => {
+    const schemeIds = [
+      ...new Set(
+        (props.results?.testResult || [])
+          .filter((row) => row.eqaPerAnalyst && row.eqaSchemeId)
+          .map((row) => row.eqaSchemeId),
+      ),
+    ];
+    schemeIds
+      .filter((schemeId) => !(schemeId in eqaAnalysts))
+      .forEach((schemeId) => {
+        getFromOpenElisServer(
+          `/rest/eqa/schemes/${schemeId}/eligible-analysts`,
+          (list) => {
+            if (componentMounted.current) {
+              setEqaAnalysts((known) => ({ ...known, [schemeId]: list || [] }));
+            }
+          },
+        );
+      });
   }, [props.results]);
 
   const loadReferalOrganizations = (values) => {
@@ -1341,26 +1392,7 @@ export function SearchResults(props) {
     {
       id: "sampleKind",
       name: intl.formatMessage({ id: "column.name.sampleKind" }),
-      cell: (row) => {
-        if (!row.qcType) {
-          return (
-            <Tag size="sm" type="outline">
-              {intl.formatMessage({ id: "label.sampleKind.client" })}
-            </Tag>
-          );
-        }
-        const labelKey = `label.sampleKind.${row.qcType.toLowerCase()}`;
-        return (
-          <span style={{ display: "inline-flex", gap: "0.25rem" }}>
-            <Tag size="sm" type="purple">
-              {intl.formatMessage({ id: "label.sampleKind.qc" })}
-            </Tag>
-            <Tag size="sm" type="warm-gray">
-              {intl.formatMessage({ id: labelKey, defaultMessage: row.qcType })}
-            </Tag>
-          </span>
-        );
-      },
+      cell: (row) => <SampleKindTag qcType={row.qcType} />,
       selector: (row) => row.qcType || "Client sample",
       sortable: true,
       width: "11rem",
@@ -1442,8 +1474,9 @@ export function SearchResults(props) {
     {
       id: "normalRange",
       name: intl.formatMessage({ id: "column.name.normalRange" }),
-      selector: (row) => row.normalRange,
+      selector: (row) => displayRange(intl, row),
       sortable: true,
+      wrap: true,
       width: "8rem",
     },
     {
@@ -1552,6 +1585,39 @@ export function SearchResults(props) {
     },
   ];
 
+  // The Analyst column exists only when a scheme on this page asks
+  // for it. Rendering it for every grid would leak the EQA flag to a bench tech
+  // looking at neighbouring patient samples.
+  if (props.results?.testResult?.some((row) => row.eqaPerAnalyst)) {
+    columns.push({
+      id: "eqaAnalyst",
+      // A help Tooltip on the header: the column appears
+      // only for EQA rows, and a bench tech seeing it arrive unannounced has no
+      // other way to know why.
+      name: (
+        <Tooltip
+          align="bottom"
+          label={intl.formatMessage({
+            id: "eqa.result.analyst.tooltip",
+            defaultMessage:
+              "Shown because this run includes an EQA sample whose scheme records who ran each sample. Choose the OpenELIS user who ran the sample, from the scheme's analyst roster — that is a separate record from whoever enters this result and whoever validates it. Non-EQA rows take no input.",
+          })}
+        >
+          <span>
+            {intl.formatMessage({
+              id: "eqa.result.analyst",
+              defaultMessage: "Analyst (EQA)",
+            })}
+          </span>
+        </Tooltip>
+      ),
+      cell: (row, index, column, id) => {
+        return renderCell(row, index, column, id);
+      },
+      width: "12rem",
+    });
+  }
+
   const renderCell = (row, index, column, id) => {
     let formatLabNum = configurationProperties.AccessionFormat === "ALPHANUM";
     const fullTestName = row.testName;
@@ -1599,7 +1665,7 @@ export function SearchResults(props) {
                 (row.vectorPoolId
                   ? row.vectorPoolLabel || ""
                   : "-" + row.sequenceNumber)}
-              {row.isEqaSample && <EQABadge priority={row.eqaPriority} />}
+              {row.eqaSample && <EQABadge priority={row.eqaPriority} />}
               {/* Pool-anchored result rows carry the pool size + animal so a
                   reviewer scanning the table sees that multiple test rows
                   belong to one pool. Rows already cluster by accession+sequence,
@@ -1741,7 +1807,7 @@ export function SearchResults(props) {
               <TextArea
                 id={"testResult" + row.id + ".note"}
                 name={"testResult[" + row.id + "].note"}
-                //value={props.results.testResult[row.id]?.pastNotes}
+                value={row.note || ""}
                 disabled={false}
                 type="text"
                 labelText=""
@@ -1753,6 +1819,45 @@ export function SearchResults(props) {
               </div>
             </div>
           </>
+        );
+
+      // Who ran this EQA sample. Non-EQA rows in a mixed grid keep
+      // the column's shape but take no input, so the bench sees one table
+      // rather than a ragged one that hints at which samples are PT.
+      case "eqaAnalyst":
+        if (!row.eqaPerAnalyst) {
+          return <span className="cds--label">—</span>;
+        }
+        return (
+          <Select
+            id={"eqaAnalyst" + row.id}
+            name={"testResult[" + row.id + "].eqaAnalystId"}
+            labelText=""
+            noLabel={true}
+            invalid={!row.eqaAnalystId}
+            invalidText={intl.formatMessage({
+              id: "eqa.result.analystRequired",
+              defaultMessage:
+                "This EQA scheme records who ran each sample. Choose an analyst before saving.",
+            })}
+            value={row.eqaAnalystId || ""}
+            onChange={(e) => handleChange(e, row.id)}
+          >
+            <SelectItem
+              text={intl.formatMessage({
+                id: "eqa.result.analystChoose",
+                defaultMessage: "Choose analyst",
+              })}
+              value=""
+            />
+            {(eqaAnalysts[row.eqaSchemeId] || []).map((analyst) => (
+              <SelectItem
+                text={analyst.displayName}
+                value={analyst.id}
+                key={analyst.id}
+              />
+            ))}
+          </Select>
         );
 
       case "result": {
@@ -1815,55 +1920,82 @@ export function SearchResults(props) {
 
           case "N":
             return (
-              <TextInput
-                id={"ResultValue" + row.id}
-                name={"testResult[" + row.id + "].resultValue"}
-                labelText=""
-                type="number"
-                value={row.resultValue}
-                style={{ ...validationState[row.id]?.style, ...holdingStyle }}
-                onBlur={(e) => {
-                  if (
-                    validationState[row.id]?.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        row.resultValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
-                }}
-                onChange={(e) => {
-                  handleChange(e, row.id);
-                  if (
-                    validationState[row.id]?.isInvalid &&
-                    configurationProperties.ALERT_FOR_INVALID_RESULTS
-                  ) {
-                    addNotification({
-                      title: intl.formatMessage({ id: "notification.title" }),
-                      message:
-                        intl.formatMessage({
-                          id: "result.outOfValidRange.msg",
-                        }) +
-                        " " +
-                        row.testName +
-                        " : " +
-                        row.resultValue,
-                      kind: NotificationKinds.error,
-                    });
-                    setNotificationVisible(true);
-                  }
-                }}
-              />
+              <>
+                <TextInput
+                  id={"ResultValue" + row.id}
+                  name={"testResult[" + row.id + "].resultValue"}
+                  labelText=""
+                  type="text"
+                  inputMode="text"
+                  value={row.resultValue}
+                  style={{ ...validationState[row.id]?.style, ...holdingStyle }}
+                  onBlur={(e) => {
+                    if (
+                      validationState[row.id]?.isInvalid &&
+                      configurationProperties.ALERT_FOR_INVALID_RESULTS
+                    ) {
+                      addNotification({
+                        title: intl.formatMessage({ id: "notification.title" }),
+                        message:
+                          intl.formatMessage({
+                            id: "result.outOfValidRange.msg",
+                          }) +
+                          " " +
+                          row.testName +
+                          " : " +
+                          row.resultValue,
+                        kind: NotificationKinds.error,
+                      });
+                      setNotificationVisible(true);
+                    }
+                  }}
+                  onChange={(e) => {
+                    handleChange(e, row.id);
+                    if (
+                      validationState[row.id]?.isInvalid &&
+                      configurationProperties.ALERT_FOR_INVALID_RESULTS
+                    ) {
+                      addNotification({
+                        title: intl.formatMessage({ id: "notification.title" }),
+                        message:
+                          intl.formatMessage({
+                            id: "result.outOfValidRange.msg",
+                          }) +
+                          " " +
+                          row.testName +
+                          " : " +
+                          row.resultValue,
+                        kind: NotificationKinds.error,
+                      });
+                      setNotificationVisible(true);
+                    }
+                  }}
+                />
+                {/* Callback is documented against a PERSISTED result: the
+                    button only renders once the critical value has been
+                    saved (row.resultId), so the modal can
+                    never substitute for Save. The modal itself is rendered
+                    once at form level (pagination-proof for the banner). */}
+                {validationState[row.id]?.isCritical && row.resultId && (
+                  <Button
+                    hasIconOnly
+                    kind="danger--tertiary"
+                    size="sm"
+                    style={{ marginTop: "0.25rem" }}
+                    renderIcon={Phone}
+                    data-testid="log-callback-button"
+                    iconDescription={intl.formatMessage({
+                      id: "qa.qi.callback.button",
+                    })}
+                    onClick={() => setCallbackModalRow(row.id)}
+                  />
+                )}
+                {validationState[row.id]?.flag === "CRITICAL" && (
+                  <div data-testid={`critical-flag-${row.id}`}>
+                    <FlagChip flag="CRITICAL" />
+                  </div>
+                )}
+              </>
             );
 
           case "R":
@@ -2376,10 +2508,10 @@ export function SearchResults(props) {
               </Button>
               <LocationPickerModal
                 isOpen={storageModalRow === data.id}
-                sample={{
-                  id: sampleItemId || data.accessionNumber,
-                  sampleAccessionNumber: data.accessionNumber,
-                  sampleType: data.sampleType || "",
+                occupantType="SAMPLE_ITEM"
+                occupant={{
+                  label: data.accessionNumber,
+                  type: data.sampleType || "",
                   status: data.sampleStatus || "Active",
                 }}
                 onConfirm={({ selection, position, reason, notes }) => {
@@ -2464,7 +2596,9 @@ export function SearchResults(props) {
     if (("" + value).startsWith("<") || ("" + value).startsWith(">")) {
       greaterThanOrLessThan = value.charAt(0);
     }
-    var actualValue = ("" + value).replace(/[<>]/g, "");
+    var actualValue = normalizeScientificNotation(
+      ("" + value).replace(/[<>]/g, ""),
+    );
     let validation = {
       isInvalid: false,
       outsideNormal: false,
@@ -2490,38 +2624,8 @@ export function SearchResults(props) {
     // }
     if (validation.isNaN) {
       return { ...validation };
-    } else if (
-      row.lowCritical != row.highCritical &&
-      actualValue > row.lowCritical &&
-      actualValue < row.highCritical
-    ) {
-      return { ...validation, isCritical: true };
-    } else if (
-      row.lowerAbnormalRange != row.upperAbnormalRange &&
-      (actualValue < row.lowerAbnormalRange ||
-        actualValue > row.upperAbnormalRange)
-    ) {
-      return { ...validation, isInvalid: true, outsideValid: true };
-      // resultBox.style.background = "#ffa0a0";
-      // resultBox.title = "En dehors de la plage valide"; //FIXME: Uses hardcoded French labels. Switch to refer to resource file.
-      // $("valid_" + row).value = false;
-      // if( outOfValidRangeMsg ){
-      //   alert( outOfValidRangeMsg);
-      // }
-    } else if (
-      row.lowerNormalRange != row.upperNormalRange &&
-      (actualValue < row.lowerNormalRange || actualValue > row.upperNormalRange)
-    ) {
-      return { ...validation, outsideNormal: true };
-      // resultBox.style.background = "#ffffa0";
-      // resultBox.title = "En dehors de la plage normale"; //FIXME: Uses hardcoded French labels. Switch to refer to resource file.
-      // $("valid_" + row).value = true;
-    } else {
-      return { ...validation, outsideNormal: false };
-      // resultBox.style.background = "#ffffff";
-      // resultBox.title = "";
-      // $("valid_" + row).value = true;
     }
+    return { ...validation, ...classifyNumericResult(actualValue, row) };
   };
 
   const validateNumberFormat = (value, row) => {
@@ -2531,14 +2635,11 @@ export function SearchResults(props) {
       greaterThanOrLessThan = value.charAt(0);
     }
     var actualValue = ("" + value).replace(/[<>]/g, "");
+    var parseableValue = normalizeScientificNotation(actualValue);
 
     let validation = { isInvalid: false };
     if (!actualValue) {
       return { ...validation, isInvalid: true, isBlank: true };
-      // resultBox.title = "";
-      // resultBox.style.background = "#ffffff";
-      // $("valid_" + row).value = false;
-      // return true;
     }
 
     if (actualValue.trim() == ".") {
@@ -2548,23 +2649,18 @@ export function SearchResults(props) {
       };
     }
 
-    if (isNaN(actualValue)) {
+    if (isNaN(parseableValue)) {
       return { ...validation, isInvalid: true, isNaN: true };
-      // $("valid_" + row).value = false;
-      // return false;
     }
 
-    if (!isNaN(row.significantDigits)) {
-      const valueStr = actualValue.toString();
-      if (valueStr.includes(".")) {
-        const decimalPlaces = valueStr.split(".")[1].length;
-        if (decimalPlaces > row.significantDigits) {
-          actualValue = parseFloat(actualValue).toFixed(row.significantDigits);
-        }
-      }
+    // The value is kept in the notation it was typed in; only a mantissa finer
+    // than the test reports to is rounded, and it is rounded in place.
+    if (exceedsDecimalPlaces(actualValue, row.significantDigits)) {
       validation = {
         ...validation,
-        newValue: greaterThanOrLessThan + actualValue,
+        newValue:
+          greaterThanOrLessThan +
+          roundMantissa(actualValue, row.significantDigits),
       };
     }
 
@@ -2716,6 +2812,24 @@ export function SearchResults(props) {
     if (isSubmitting) {
       return;
     }
+    const nonNumericRow = props.results.testResult.find(
+      (row) => row.resultType === "N" && validationState[row.id]?.isNaN,
+    );
+    if (nonNumericRow) {
+      addNotification({
+        title: intl.formatMessage({ id: "notification.title" }),
+        message: intl.formatMessage(
+          { id: "result.notNumeric.msg" },
+          {
+            test: nonNumericRow.testName,
+            value: nonNumericRow.resultValue,
+          },
+        ),
+        kind: NotificationKinds.error,
+      });
+      setNotificationVisible(true);
+      return;
+    }
     setIsSubmitting(true);
     var searchEndPoint = "/rest/LogbookResults";
     props.results.testResult.forEach((result) => {
@@ -2750,12 +2864,7 @@ export function SearchResults(props) {
         kind: NotificationKinds.success,
       });
       if (props.refreshOnSubmit) {
-        window.location.href =
-          "/result?type=" +
-          props.searchBy.type +
-          "&doRange=" +
-          props.searchBy.doRange +
-          props.extraParams;
+        props.refreshResults?.(Number(props.results?.paging?.currentPage) || 1);
       }
     } else {
       addNotification({
@@ -2787,15 +2896,6 @@ export function SearchResults(props) {
     return message;
   };
 
-  const handlePageChange = (pageInfo) => {
-    if (page != pageInfo.page) {
-      setPage(pageInfo.page);
-    }
-    if (pageSize != pageInfo.pageSize) {
-      setPageSize(pageInfo.pageSize);
-    }
-  };
-
   // Apply pool filters passed down from ResultSearchPage (display-only — the
   // full props.results is still used for saving so nothing is dropped on submit).
   const poolLotFilter = props.poolLotFilter || "";
@@ -2809,9 +2909,18 @@ export function SearchResults(props) {
     return allRows;
   }, [allRows, poolLotFilter, poolIdFilter]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [poolLotFilter, poolIdFilter]);
+  const arrows = serverPageArrowsProps({
+    paging: props.results?.paging,
+    onPageRequest: (pageNumber) => props.loadPage?.(pageNumber),
+  });
+
+  // Saved criticals with no callback logged this session (OGC-714).
+  const needsCallback = allRows.filter(
+    (row) =>
+      validationState[row.id]?.isCritical &&
+      row.resultId &&
+      !loggedCallbackRows[row.id],
+  );
 
   return (
     <>
@@ -2837,6 +2946,51 @@ export function SearchResults(props) {
             </Column>
           </Grid>
         )}
+        {/* Persistent needs-callback banner (OGC-714). The v4 Results Entry
+            design reserves a banner for exactly this; this is the legacy-page
+            bridge. */}
+        {needsCallback.length > 0 && (
+          <ActionableNotification
+            kind="warning"
+            lowContrast
+            inline
+            hideCloseButton
+            // status, not the alertdialog default: Carbon's alertdialog
+            // grabs focus back to the banner on every render, making the
+            // callback modal (and the results grid) untypeable while the
+            // banner is visible.
+            role="status"
+            data-testid="callback-banner"
+            style={{ maxWidth: "none", marginBottom: "0.5rem" }}
+            title={intl.formatMessage({
+              id: "qa.qi.callback.banner.title",
+            })}
+            subtitle={intl.formatMessage(
+              { id: "qa.qi.callback.banner.subtitle" },
+              { count: needsCallback.length },
+            )}
+            actionButtonLabel={intl.formatMessage({
+              id: "qa.qi.callback.button",
+            })}
+            onActionButtonClick={() => {
+              const first = needsCallback[0];
+              document
+                .getElementById("ResultValue" + first.id)
+                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+              setCallbackModalRow(first.id);
+            }}
+          />
+        )}
+        <CriticalCallbackModal
+          open={callbackModalRow != null}
+          resultRow={(props.results?.testResult || []).find(
+            (row) => row.id === callbackModalRow,
+          )}
+          onClose={() => setCallbackModalRow(null)}
+          onLogged={(row) =>
+            setLoggedCallbackRows((prev) => ({ ...prev, [row.id]: true }))
+          }
+        />
         <Formik
           initialValues={SearchResultFormValues}
           //validationSchema={}
@@ -2855,8 +3009,10 @@ export function SearchResults(props) {
               onChange={handleChange}
               //onBlur={handleBlur}
             >
+              {arrows.show && <ServerPageArrows {...arrows} />}
               <DataTable
-                data={displayRows.slice((page - 1) * pageSize, page * pageSize)}
+                data={displayRows}
+                keyField="id"
                 columns={columns}
                 isSortable
                 expandableRows
@@ -2865,43 +3021,13 @@ export function SearchResults(props) {
               ></DataTable>
               <Pagination
                 style={{ marginTop: "1.5rem" }}
-                onChange={handlePageChange}
-                page={page}
-                pageSize={pageSize}
-                pageSizes={[10, 20, 30, 50, 100]}
-                totalItems={displayRows.length}
-                forwardText={intl.formatMessage({ id: "pagination.forward" })}
-                backwardText={intl.formatMessage({ id: "pagination.backward" })}
-                itemRangeText={(min, max, total) =>
-                  intl.formatMessage(
-                    { id: "pagination.item-range" },
-                    { min: min, max: max, total: total },
-                  )
-                }
-                itemsPerPageText={intl.formatMessage({
-                  id: "pagination.items-per-page",
+                {...serverPaginationProps({
+                  paging: props.results?.paging,
+                  rowsOnPage: displayRows.length,
+                  pageSize: props.serverPageSize,
+                  onPageRequest: (pageNumber) => props.loadPage?.(pageNumber),
+                  intl,
                 })}
-                itemText={(min, max) =>
-                  intl.formatMessage(
-                    { id: "pagination.item" },
-                    { min: min, max: max },
-                  )
-                }
-                pageNumberText={intl.formatMessage({
-                  id: "pagination.page-number",
-                })}
-                pageRangeText={(_current, total) =>
-                  intl.formatMessage(
-                    { id: "pagination.page-range" },
-                    { total: total },
-                  )
-                }
-                pageText={(page, pagesUnknown) =>
-                  intl.formatMessage(
-                    { id: "pagination.page" },
-                    { page: pagesUnknown ? "" : page },
-                  )
-                }
               />
 
               <ESignatureButton
