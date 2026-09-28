@@ -337,9 +337,14 @@ public class ResultsLoadUtility {
             currentPatient = sampleService.getPatient(sample);
 
             String patientName = "";
-            String patientInfo;
-            String nationalId = patientService.getNationalId(currentPatient);
-            if (depersonalize) {
+            String patientInfo = "";
+            // A blinded EQA order has no patient at all. Reading identity off a null
+            // one used to render the literal words "null" into the Sample Info cell
+            // — "nullnull, null, N" — which reads like corrupt data.
+            String nationalId = currentPatient == null ? null : patientService.getNationalId(currentPatient);
+            if (currentPatient == null) {
+                patientInfo = "";
+            } else if (depersonalize) {
                 patientInfo = GenericValidator.isBlankOrNull(nationalId) ? patientService.getExternalId(currentPatient)
                         : nationalId;
             } else {
@@ -1173,6 +1178,12 @@ public class ResultsLoadUtility {
                         testItem.setEqaPriority(sampleEQA.getEqaPriority().name());
                     }
                 }
+                // Only schemes that opted in show the Analyst column,
+                // and the scheme id is what its picker reads its eligible list from.
+                sampleEQAService.findPerAnalystSchemeId(sampleId).ifPresent(schemeId -> {
+                    testItem.setEqaPerAnalyst(true);
+                    testItem.setEqaSchemeId(String.valueOf(schemeId));
+                });
             }
         } catch (RuntimeException e) {
             String sampleIdStr = eqaSample != null ? eqaSample.getId() : "null";
