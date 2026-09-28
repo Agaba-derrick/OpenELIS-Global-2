@@ -963,6 +963,12 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<Test> getAllTestsByTestSectionIds(List<String> ids) {
+        return getBaseObjectDAO().getAllTestsByTestSectionIds(ids);
+    }
+
+    @Override
     public List<Test> getTbTestByMethod(String method) {
         return getBaseObjectDAO().getTbTestByMethod(method);
     }
@@ -1007,5 +1013,11 @@ public class TestServiceImpl extends AuditableBaseObjectServiceImpl<Test, String
             ids.put("reportingName", reportingName.getId());
         }
         return ids;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isNameLocalization(String localizationId) {
+        return getBaseObjectDAO().isNameLocalization(localizationId);
     }
 }
