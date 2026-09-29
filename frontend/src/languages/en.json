@@ -281,6 +281,7 @@
   "error.labUnit.list.load": "Error loading lab units",
   "error.labUnit.name.duplicate": "This lab unit name already exists",
   "error.labUnit.name.maxLength": "Name must be {max} characters or less",
+  "error.request.unreadable": "Nothing was saved: the server did not accept one of the values sent. Check the form and try again.",
   "error.labUnit.name.required": "Name is required",
   "heading.labUnit.add": "Add New Lab Unit",
   "heading.labUnit.editing": "Editing: {name}",
