@@ -39,12 +39,11 @@ BUNDLE_FILES = (
     "volume/properties/common.properties",
     "volume/openelis-analyzer-bridge/configuration.yml",
     SEED_SCRIPT,
-    "projects/analyzer-harness/seed-mvp-traffic.sh",
-    "projects/analyzer-harness/config-templates/tests/harness-tests.csv",
 )
 DEFAULT_MOCK_URL = "http://127.0.0.1:8085"
 SMOKE_ANALYZER = "Cepheid GeneXpert (ASTM Mode)"
-SMOKE_DESTINATION = "tcp://openelis-analyzer-bridge:9600"
+SMOKE_DESTINATION = "tcp://openelis-analyzer-bridge:12001"
+SMOKE_SENDER_ID = "OE2-TEST-GENEXPERT"
 TEST_USER = "admin"
 TEST_PASS = "adminADMIN!"
 
@@ -122,11 +121,9 @@ def unpack_release(bundle, site_dir, sha):
         configuration = site_dir / "configuration"
         configuration.mkdir(exist_ok=True)
         catalog = configuration / "backend"
-        if not catalog.exists():
-            with tempfile.TemporaryDirectory(prefix="catalog-", dir=configuration) as catalog_staging:
-                seeded = pathlib.Path(catalog_staging) / "backend"
-                shutil.copytree(staging / "projects/analyzer-harness/config-templates", seeded)
-                seeded.rename(catalog)
+        # A new site uses the defaults packaged in its OE image. Existing
+        # uploaded catalogs remain site-owned and survive release changes.
+        catalog.mkdir(exist_ok=True)
         (staging / "configuration").symlink_to(configuration, target_is_directory=True)
         staging.rename(release)
         staging.mkdir()
@@ -194,7 +191,7 @@ def http_json(method, url, body=None, username=TEST_USER, password=TEST_PASS, au
 
 def verify_analyzer_delivery(api_base, mock_url, accession, http=http_json, sleep=time.sleep, timeout=120):
     pushed = http("POST", mock_url + "/simulate/astm/genexpert_astm",
-                  {"destination": SMOKE_DESTINATION, "sample_id": accession})
+                  {"destination": SMOKE_DESTINATION, "sample_id": accession, "sender_id": SMOKE_SENDER_ID})
     if pushed.get("pushed") != 1:
         raise RuntimeError(f"Mock did not deliver the smoke result: {pushed}")
     analyzers = http("GET", api_base + "/analyzer/analyzers").get("analyzers", [])
