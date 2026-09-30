@@ -135,6 +135,33 @@ public class AnalyzerNormalizedResultImportIntegrationTest extends BaseWebContex
     }
 
     @Test
+    public void heldControlRecoveryKeepsItsOriginalLotAndDoesNotDuplicateQc() throws Exception {
+        Bundle bundle = prepareControl(true, false);
+        AnalyzerNormalizedResultImportSummary receipt = importService.importBundle(bundle, "1");
+        assertEquals(1, receipt.resultsHeld());
+        AnalyzerResults held = resultsService.getResultsbyAnalyzer(String.valueOf(ANALYZER_ID)).get(0);
+        String originalId = held.getId();
+        assertTrue(held.getSourcePayload().contains("LOT-WBC-2026-08"));
+        assertTrue(held.isReadOnly());
+        assertEquals(Integer.valueOf(0), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM clinlims.qc_result WHERE control_lot_id = ?", Integer.class, QC_LOT_ID));
+
+        AnalyzerSiteBindingSnapshot binding = bindings.findByRevisionId(String.valueOf(SITE_BINDING_REVISION_ID))
+                .orElseThrow();
+        confirm(binding, bundle);
+        assertEquals(1, importService.recoverHeldMappingResults(String.valueOf(ANALYZER_ID), "1"));
+
+        AnalyzerResults recovered = resultsService.get(originalId);
+        assertFalse(recovered.isReadOnly());
+        assertTrue(recovered.getSourcePayload().contains("LOT-WBC-2026-08"));
+        assertEquals(Integer.valueOf(1), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM clinlims.qc_result WHERE control_lot_id = ?", Integer.class, QC_LOT_ID));
+        assertEquals(receipt, importService.importBundle(bundle, "1"));
+        assertEquals(Integer.valueOf(1), jdbc.queryForObject(
+                "SELECT COUNT(*) FROM clinlims.qc_result WHERE control_lot_id = ?", Integer.class, QC_LOT_ID));
+    }
+
+    @Test
     public void simultaneousCopiesCommitOnlyOneReceiptAndStagingRow() throws Exception {
         String payload = Files.readString(FIXTURE);
         CountDownLatch start = new CountDownLatch(1);
@@ -248,10 +275,14 @@ public class AnalyzerNormalizedResultImportIntegrationTest extends BaseWebContex
                 new AnalyzerSiteBindingDraft(List.of(new AnalyzerSiteBindingTestDraft(original.getRawTestCode(),
                         AnalyzerSiteBindingMappingState.BOUND, String.valueOf(TEST_ID))), List.of()),
                 "1");
-        confirm(updated, bundle);
-        assertEquals(0, importService.recoverHeldMappingResults(String.valueOf(ANALYZER_ID), "1"));
-        assertTrue(resultsService.get(id).isReadOnly());
+        assertThrows(IllegalArgumentException.class,
+                () -> localState.selectSiteBindingRevision(String.valueOf(ANALYZER_ID), updated.binding().getId(),
+                        updated.revision().getRevisionNumber(), updated.revision().getBindingFingerprint(), "1"));
+        assertTrue("rejecting an unconfirmed revision must not release held results",
+                resultsService.get(id).isReadOnly());
 
+        confirm(updated, bundle);
+        assertTrue("confirmation alone must not replay held results", resultsService.get(id).isReadOnly());
         localState.selectSiteBindingRevision(String.valueOf(ANALYZER_ID), updated.binding().getId(),
                 updated.revision().getRevisionNumber(), updated.revision().getBindingFingerprint(), "1");
         AnalyzerResults recovered = resultsService.get(id);
@@ -377,6 +408,10 @@ public class AnalyzerNormalizedResultImportIntegrationTest extends BaseWebContex
     }
 
     private Bundle prepareControl(boolean withStatistics) throws Exception {
+        return prepareControl(withStatistics, true);
+    }
+
+    private Bundle prepareControl(boolean withStatistics, boolean confirmed) throws Exception {
         bindTest("WBC");
         jdbc.update(
                 "UPDATE clinlims.analyzer_profile_binding SET profile_id = 'site.mock-hematology', profile_revision = 1 WHERE id = ?",
@@ -392,7 +427,8 @@ public class AnalyzerNormalizedResultImportIntegrationTest extends BaseWebContex
             addQcStatistics();
         Bundle bundle = REAL_FHIR.newJsonParser().parseResource(Bundle.class,
                 Files.readString(FIXTURE.resolveSibling("normalized-qc.fhir.json")));
-        confirm(bindings.findByRevisionId(String.valueOf(SITE_BINDING_REVISION_ID)).orElseThrow(), bundle);
+        if (confirmed)
+            confirm(bindings.findByRevisionId(String.valueOf(SITE_BINDING_REVISION_ID)).orElseThrow(), bundle);
         return bundle;
     }
 

@@ -494,6 +494,223 @@ test.describe("OGC-1054 stock analyzer result workflow", () => {
       });
     }
   });
+
+  test("GeneXpert accepts a usable result and recovers its held sibling", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(180_000 * TIMEOUT_SCALE);
+    const presentation = createDemoPresentation(page, testInfo);
+    await presentation.chapter({
+      eyebrow: "OGC-1054 R1 · GeneXpert held-result recovery",
+      title: "Recover the held result without resending",
+      subtitle:
+        "Keep the usable result available while correcting the held sibling.",
+      durationMs: 6500,
+    });
+    const runId = randomUUID().slice(0, 8);
+    const analyzerName = `E2E Recovery GeneXpert ${runId}`;
+    const senderId = `GX-${runId}`;
+    const knownValue = "NOT DETECTED";
+    const rawValue = "RIF RESISTANCE INDETERMINATE";
+    const list = new AnalyzerListPage(page);
+    const setup = new AnalyzerSetupPage(page);
+
+    await list.goto();
+    await list.clickAdd();
+    await setup.expectOpen();
+    await setup.selectProfile("Cepheid GeneXpert (ASTM Mode)");
+    await setup.fillName(analyzerName);
+    await setup.selectLabUnit("Molecular Biology");
+    await setup.continueToVerify();
+    const verifyUrl = page.url();
+    const analyzer = await analyzerByName(page, analyzerName, "genexpert-astm");
+    const order = await createAnalyzerClinicalOrder(page, {
+      profileId: analyzer.profileId,
+      profileRevision: analyzer.profileRevision,
+      sourceCode: "MTB-RIF",
+      expectedTestName: "Xpert MTB/RIF",
+      expectedLoinc: "85362-2",
+      specimenName: "Sputum",
+      expectedMappedValue: knownValue,
+      additionalTests: [
+        {
+          profileId: analyzer.profileId,
+          profileRevision: analyzer.profileRevision,
+          sourceCode: "RIF",
+          expectedTestName: "Xpert RIF Resistance",
+          expectedLoinc: "46244-0",
+          specimenName: "Sputum",
+        },
+      ],
+    });
+    await confirmShippedMapping(page, analyzer);
+    await page.goto(verifyUrl, { waitUntil: "domcontentloaded" });
+    await setup.continueToConnect();
+    await setup.fillSenderId(senderId);
+    await page.getByRole("button", { name: "Finish and activate" }).click();
+    await expect(page.getByTestId(`analyzer-row-${analyzer.id}`)).toContainText(
+      "Active",
+    );
+
+    await sendGeneXpertAstm(
+      page.request,
+      analyzer.bridgeConnectionId,
+      order.accession,
+      "MTB-RIF",
+      knownValue,
+      senderId,
+      [{ testCode: "RIF", value: rawValue }],
+    );
+    let originalId: string | undefined;
+    let knownId: string | undefined;
+    await expect(async () => {
+      const response = await page.request.get(
+        `${API}/AnalyzerResults?id=${analyzer.id}`,
+      );
+      expect(response.ok()).toBeTruthy();
+      const payload = (await response.json()) as {
+        resultList: Array<{
+          id: string;
+          accessionNumber: string;
+          rawTestCode: string;
+          rawResultValue: string;
+          importIssueReason: string | null;
+        }>;
+      };
+      const rows = payload.resultList.filter(
+        (row) => row.accessionNumber === order.accession,
+      );
+      expect(rows).toHaveLength(2);
+      const known = rows.find((row) => row.rawTestCode === "MTB-RIF");
+      const held = rows.find((row) => row.rawTestCode === "RIF");
+      expect(known?.rawResultValue).toBe(knownValue);
+      expect(known?.importIssueReason).toBeFalsy();
+      expect(held?.rawResultValue).toBe(rawValue);
+      expect(held?.importIssueReason).toBe("unknown_analyzer_result_value");
+      knownId = known?.id;
+      originalId = held?.id;
+    }).toPass();
+    expect(originalId).toBeTruthy();
+    expect(knownId).toBeTruthy();
+
+    await page.goto(`/AnalyzerResults?id=${analyzer.id}`, {
+      waitUntil: "domcontentloaded",
+    });
+    const held = page.getByTestId(`held-analyzer-result-${originalId}`);
+    await expect(held).toContainText(rawValue);
+    const known = page.getByRole("row").filter({
+      has: page.locator(`[id="resultList${knownId}.isAccepted"]`),
+    });
+    await expect(known).toContainText(knownValue);
+    await known.locator('label[for$=".isAccepted"]').click();
+    await page.locator(`[id="resultList${knownId}.note"]`).fill("Reviewed");
+    await capture(page, testInfo, "held-original-result");
+    await presentation.pause(3000);
+    await presentation.chapter({
+      eyebrow: "GeneXpert · One message, two results",
+      title: "The usable MTB result stays reviewable",
+      subtitle: "Only the unmapped RIF observation is held for correction.",
+      durationMs: 5000,
+    });
+    await held
+      .getByRole("link", { name: "Review Analyzer Type mapping" })
+      .click();
+    const picker = page.getByRole("combobox", {
+      name: `OpenELIS result for ${rawValue}`,
+    });
+    await expect(picker).toBeVisible();
+    await picker.click();
+    await page
+      .getByRole("option", { name: "Indeterminate", exact: true })
+      .click();
+    await page.getByRole("button", { name: "Update shared mappings" }).click();
+    const confirm = page.getByRole("button", {
+      name: "Confirm mappings and control recognition",
+    });
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
+    const apply = page.getByRole("button", {
+      name: "Apply mappings and retry held results",
+    });
+    await expect(apply).toBeEnabled();
+    await apply.click();
+    await expect(
+      page.getByText(
+        "Current mappings applied to this analyzer. Eligible held results were retried.",
+      ),
+    ).toBeVisible();
+    await presentation.pause(3000);
+
+    await expect(async () => {
+      const response = await page.request.get(
+        `${API}/AnalyzerResults?id=${analyzer.id}`,
+      );
+      expect(response.ok()).toBeTruthy();
+      const payload = (await response.json()) as {
+        resultList: Array<{ id: string; importIssueReason: string | null }>;
+      };
+      const original = payload.resultList.filter(
+        (row) => row.id === originalId,
+      );
+      expect(original).toHaveLength(1);
+      expect(original[0].importIssueReason).toBeFalsy();
+    }).toPass();
+
+    await page
+      .locator(".analyzer-type-mapping__heading-actions")
+      .getByRole("link", { name: "Analyzer Types" })
+      .click();
+    await expect(page).toHaveURL(/\/AnalyzerResults\?id=/);
+    await expect(known.locator('[id$=".isAccepted"]')).toBeChecked();
+    await expect(page.locator(`[id="resultList${knownId}.note"]`)).toHaveValue(
+      "Reviewed",
+    );
+    const recovered = page.getByRole("row").filter({
+      has: page.getByRole("cell", { name: "RIF", exact: true }),
+    });
+    await expect(recovered).toHaveCount(1);
+    await expect(recovered).toContainText("Indeterminate");
+    await capture(page, testInfo, "recovered-original-result");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(recovered).not.toBeVisible();
+    await expect(known).not.toBeVisible();
+    await expectClinicalReadback(page, order, knownValue);
+    await expectClinicalReadback(
+      page,
+      {
+        ...order,
+        testId: order.orderedTests[1].testId,
+        primaryComponentId: order.orderedTests[1].primaryComponentId,
+      },
+      "Indeterminate",
+    );
+    await page.goto(
+      `/Results?accessionNumber=${encodeURIComponent(order.accession)}`,
+      { waitUntil: "domcontentloaded" },
+    );
+    const saved = page
+      .getByRole("row", {
+        name: new RegExp(order.accession),
+      })
+      .filter({ hasText: "Indeterminate" });
+    await expect(saved).toHaveCount(1);
+    await expect(saved).toContainText("Xpert RIF Resistance");
+    await expect(saved).toContainText("Indeterminate");
+    const savedKnown = page
+      .getByRole("row", { name: new RegExp(order.accession) })
+      .filter({ hasText: knownValue });
+    await expect(savedKnown).toHaveCount(1);
+    await expect(savedKnown).toContainText("Xpert MTB/RIF");
+    await capture(page, testInfo, "recovered-clinical-result-saved");
+    await presentation.chapter({
+      eyebrow: "GeneXpert · Recovery verified",
+      title: "Both original results reached the clinical record",
+      subtitle:
+        "The held row was recovered in place; no analyzer resend was needed.",
+      durationMs: 6000,
+    });
+  });
+
   test("FluoroCycler imports a watched file for the correct clinical orders", async ({
     page,
   }, testInfo) => {
