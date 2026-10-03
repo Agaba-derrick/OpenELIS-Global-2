@@ -1,3 +1,4 @@
+import { labNow } from "../../utils/labClock";
 import React, { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { FormattedMessage, useIntl } from "react-intl";
 import {
@@ -386,7 +387,7 @@ const RecordForm = ({
     (tried && localErrors[field]) || fieldErrors[field] || null;
   const overdue =
     form.referral.nextReviewDue &&
-    form.referral.nextReviewDue < toLocalIsoDate(new Date());
+    form.referral.nextReviewDue < toLocalIsoDate(labNow());
 
   const focusField = (key) => {
     const prefix = FIELD_ELEMENT[key] || key;
