@@ -108,7 +108,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         // expresses the "new referral" intent this test covers (the populated-id
         // branch is exercised by _UpdatesInPlaceInsteadOfDuplicating).
         referralItems.forEach(item -> item.setReferralId(null));
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         int initialReferralItemsCount = referralItems.size();
         assertEquals(3, initialReferralItemsCount);
@@ -163,7 +163,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         List<Referral> initialReferrals = referralService.getAll();
         long initialWithSubcontract = initialReferrals.stream().filter(r -> r.getSubcontract() != null).count();
 
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         referralSetService.createSaveReferralSetsSamplePatientEntry(referralItems, updateData);
 
@@ -202,7 +202,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         ReferralStatusHistory initial = populatedHistory.get(0);
         assertNull(initial.getFromStatus());
         assertEquals(ReferralStatus.DRAFT, initial.getToStatus());
-        assertEquals("3901", initial.getChangedByUserId());
+        assertEquals(TEST_SYS_USER_ID, initial.getChangedByUserId());
         assertNotNull(initial.getChangedAt());
     }
 
@@ -223,7 +223,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         firstItem.setCocContactPhone("+1-555-1430");
         firstItem.setSubcontractNotes("Round-trip coverage including time component.");
 
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         referralSetService.createSaveReferralSetsSamplePatientEntry(referralItems, updateData);
 
@@ -261,7 +261,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         firstSaveItems.get(0).setAgreementReference("AGR-EDIT-FLOW");
         firstSaveItems.get(0).setHandoffDatetime("15/05/2026 09:00");
         firstSaveItems.get(0).setCocContactName("Original Contact");
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         referralSetService.createSaveReferralSetsSamplePatientEntry(firstSaveItems, updateData);
 
@@ -315,7 +315,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         first.setSubcontractNotes("Created via env/vector draft path.");
 
         int initialReferralCount = referralService.getAll().size();
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
 
         referralSetService.createDraftReferralSetsForOrderEntry(referralItems, updateData);
@@ -342,7 +342,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         ReferralStatusHistory initial = history.get(0);
         assertNull(initial.getFromStatus());
         assertEquals(ReferralStatus.DRAFT, initial.getToStatus());
-        assertEquals("3901", initial.getChangedByUserId());
+        assertEquals(TEST_SYS_USER_ID, initial.getChangedByUserId());
         assertNotNull(initial.getChangedAt());
     }
 
@@ -385,7 +385,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
 
         List<ReferralItem> referralItems = referralItemService.getReferralItems();
         referralItems.forEach(item -> item.setReferralId(null));
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
 
         referralSetService.createDraftReferralSetsForOrderEntry(referralItems, updateData);
@@ -398,7 +398,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
     @Test
     public void createDraftReferralSetsForOrderEntry_emptyReferralItems_isNoop() {
         int initialCount = referralService.getAll().size();
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
 
         referralSetService.createDraftReferralSetsForOrderEntry(new ArrayList<>(), updateData);
 
@@ -417,7 +417,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         firstSaveItems.forEach(item -> item.setReferralId(null));
         firstSaveItems.get(0).setAgreementReference("AGR-EDIT-ENV");
         firstSaveItems.get(0).setCocContactName("Original Env Contact");
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         referralSetService.createDraftReferralSetsForOrderEntry(firstSaveItems, updateData);
 
@@ -485,7 +485,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         Set<String> referralIdsBeforeSave = referralService.getAll().stream().map(Referral::getId)
                 .collect(Collectors.toSet());
 
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
         referralSetService.createDraftReferralSetsForOrderEntry(referralItems, updateData);
 
@@ -540,7 +540,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
 
         List<ReferralItem> referralItems = referralItemService.getReferralItems();
         referralItems.forEach(item -> item.setReferralId(null));
-        SamplePatientUpdateData updateData = new SamplePatientUpdateData("3901");
+        SamplePatientUpdateData updateData = new SamplePatientUpdateData(TEST_SYS_USER_ID);
         updateData.setSampleItemsTests(sampleItemsTests);
 
         referralSetService.createSaveReferralSetsSamplePatientEntry(referralItems, updateData);
@@ -549,7 +549,7 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
     }
 
     private static SampleAddService.SampleTestCollection getSampleTestCollection() {
-        SampleAddService sampleAddService = new SampleAddService("xml", "3901", new Sample(), "2024-06-03");
+        SampleAddService sampleAddService = new SampleAddService("xml", TEST_SYS_USER_ID, new Sample(), "2024-06-03");
         List<org.openelisglobal.test.valueholder.Test> tests = new ArrayList<>();
         List<ObservationHistory> initialConditionList = new ArrayList<>();
         Map<String, String> testIdToUserSectionMap = new HashMap<>();
