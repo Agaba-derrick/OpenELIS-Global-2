@@ -2,11 +2,10 @@ package org.openelisglobal.testalertrule;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.List;
+import org.hibernate.ObjectNotFoundException;
 import org.junit.Before;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
@@ -14,24 +13,6 @@ import org.openelisglobal.testalertrule.service.TestAlertRuleService;
 import org.openelisglobal.testalertrule.valueholder.TestAlertRule;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * Integration tests for {@link TestAlertRuleService}.
- *
- * <p>
- * Covers: CRUD operations, per-test lookup ({@code getByTestId}), and key field
- * semantics (trigger type, notification channels, acknowledgment flag).
- *
- * <p>
- * Fixture: {@code testdata/test_alert_rule.xml}
- * <ul>
- * <li>rule-001 — ALL trigger, test_id=1 (CBC), email+SMS, enabled</li>
- * <li>rule-002 — CRITICAL trigger, test_id=1 (CBC), email+physician, ack
- * required</li>
- * <li>rule-003 — ABNORMAL trigger, test_id=2 (UA), disabled</li>
- * <li>rule-004 — SPECIFIC_VALUE trigger, test_id=1 (CBC), custom contacts, ack
- * required</li>
- * </ul>
- */
 public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
 
     @Autowired
@@ -42,56 +23,45 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
         executeDataSetWithStateManagement("testdata/test_alert_rule.xml");
     }
 
-    // ─── getByTestId ──────────────────────────────────────────────────────────
-
     @Test
     public void getByTestId_withValidTestId_shouldReturnRulesForThatTest() {
-        // test_id=1 (CBC) has 3 rules: rule-001, rule-002, rule-004
         List<TestAlertRule> rules = testAlertRuleService.getByTestId("1");
 
-        assertNotNull(rules);
-        assertEquals(3, rules.size());
-        rules.forEach(r -> assertEquals("1", r.getTestId()));
+        assertEquals("Expected exactly 3 CBC rules", 3, rules.size());
+        rules.forEach(r -> assertEquals("Every returned rule must belong to test_id=1", "1", r.getTestId()));
     }
 
     @Test
     public void getByTestId_withValidTestId_shouldReturnCorrectRuleForUrinalysis() {
-        // test_id=2 (UA) has 1 rule: rule-003
         List<TestAlertRule> rules = testAlertRuleService.getByTestId("2");
 
-        assertNotNull(rules);
-        assertEquals(1, rules.size());
+        assertEquals("Expected exactly 1 UA rule", 1, rules.size());
         assertEquals("UA Abnormal Alert", rules.get(0).getName());
+        assertEquals("ABNORMAL", rules.get(0).getTriggerType());
+        assertFalse("UA rule must be disabled in fixture", rules.get(0).getEnabled());
     }
 
     @Test
     public void getByTestId_withUnknownTestId_shouldReturnEmptyList() {
         List<TestAlertRule> rules = testAlertRuleService.getByTestId("99999");
-
-        assertNotNull(rules);
-        assertTrue(rules.isEmpty());
+        assertEquals("Expected zero rules for unknown test_id", 0, rules.size());
     }
-
-    // ─── get (by primary key) ─────────────────────────────────────────────────
 
     @Test
     public void get_withKnownId_shouldReturnCorrectRule() {
         TestAlertRule rule = testAlertRuleService.get("rule-001");
 
-        assertNotNull(rule);
         assertEquals("rule-001", rule.getId());
         assertEquals("CBC All-Results Alert", rule.getName());
         assertEquals("ALL", rule.getTriggerType());
         assertEquals("1", rule.getTestId());
+        assertTrue("rule-001 must be enabled", rule.getEnabled());
     }
 
-    @Test
-    public void get_withUnknownId_shouldReturnNull() {
-        TestAlertRule rule = testAlertRuleService.get("non-existent-id");
-        assertNull(rule);
+    @Test(expected = ObjectNotFoundException.class)
+    public void get_withUnknownId_shouldThrowForMissingEntity() {
+        testAlertRuleService.get("non-existent-id");
     }
-
-    // ─── notification channel flags ───────────────────────────────────────────
 
     @Test
     public void get_allTriggerRule_shouldHaveEmailAndSmsEnabled() {
@@ -121,17 +91,15 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
         assertTrue("Expected acknowledgmentRequired=true", rule.getAcknowledgmentRequired());
     }
 
-    // ─── enabled flag ─────────────────────────────────────────────────────────
-
     @Test
     public void get_disabledRule_shouldReturnEnabledFalse() {
         TestAlertRule rule = testAlertRuleService.get("rule-003");
 
-        assertNotNull(rule);
+        assertEquals("rule-003", rule.getId());
         assertFalse("Expected is_enabled=false for rule-003", rule.getEnabled());
+        assertEquals("ABNORMAL", rule.getTriggerType());
+        assertEquals("2", rule.getTestId());
     }
-
-    // ─── insert ───────────────────────────────────────────────────────────────
 
     @Test
     public void insert_newRule_shouldPersistAndBeRetrievable() {
@@ -149,14 +117,15 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
 
         String insertedId = testAlertRuleService.insert(newRule);
 
-        assertNotNull(insertedId);
         TestAlertRule fetched = testAlertRuleService.get(insertedId);
-        assertNotNull(fetched);
+        assertEquals(insertedId, fetched.getId());
         assertEquals("New Compliance Alert", fetched.getName());
         assertEquals("COMPLIANCE_BREACH", fetched.getTriggerType());
         assertEquals("1", fetched.getTestId());
-        assertTrue(fetched.getEnabled());
-        assertTrue(fetched.getNotifyEmail());
+        assertTrue("inserted rule must be enabled", fetched.getEnabled());
+        assertTrue("inserted rule must have notifyEmail=true", fetched.getNotifyEmail());
+        assertFalse("inserted rule must have notifySms=false", fetched.getNotifySms());
+        assertFalse("inserted rule must have acknowledgmentRequired=false", fetched.getAcknowledgmentRequired());
     }
 
     @Test
@@ -177,10 +146,10 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
         testAlertRuleService.insert(extraRule);
 
         List<TestAlertRule> after = testAlertRuleService.getByTestId("2");
-        assertEquals(before + 1, after.size());
+        assertEquals("getByTestId must reflect the newly inserted rule", before + 1, after.size());
+        assertEquals("UA Extra Alert", after.stream().filter(r -> "UA Extra Alert".equals(r.getName())).findFirst()
+                .map(TestAlertRule::getName).orElse(null));
     }
-
-    // ─── update ───────────────────────────────────────────────────────────────
 
     @Test
     public void update_existingRule_shouldPersistChanges() {
@@ -196,18 +165,15 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
         assertTrue("Expected notifySms=true after update", updated.getNotifySms());
     }
 
-    // ─── delete ───────────────────────────────────────────────────────────────
-
     @Test
     public void delete_existingRule_shouldRemoveItFromDatabase() {
-        // Confirm rule exists first
-        TestAlertRule rule = testAlertRuleService.get("rule-003");
-        assertNotNull("Pre-condition: rule-003 should exist", rule);
+        List<TestAlertRule> beforeDelete = testAlertRuleService.getByTestId("2");
+        assertEquals("Pre-condition: rule-003 should exist", 1, beforeDelete.size());
 
-        testAlertRuleService.delete(rule);
+        testAlertRuleService.delete(beforeDelete.get(0));
 
-        TestAlertRule afterDelete = testAlertRuleService.get("rule-003");
-        assertNull("Expected rule-003 to be null after deletion", afterDelete);
+        List<TestAlertRule> afterDelete = testAlertRuleService.getByTestId("2");
+        assertTrue("Expected no UA rules after deletion", afterDelete.isEmpty());
     }
 
     @Test
@@ -215,18 +181,13 @@ public class TestAlertRuleServiceTest extends BaseWebContextSensitiveTest {
         TestAlertRule rule = testAlertRuleService.get("rule-003");
         testAlertRuleService.delete(rule);
 
-        // CBC rules (test_id=1) must remain untouched
         List<TestAlertRule> cbcRules = testAlertRuleService.getByTestId("1");
         assertEquals(3, cbcRules.size());
     }
 
-    // ─── getAll ───────────────────────────────────────────────────────────────
-
     @Test
     public void getAll_shouldReturnAllFourFixtureRules() {
         List<TestAlertRule> all = testAlertRuleService.getAll();
-
-        assertNotNull(all);
-        assertEquals(4, all.size());
+        assertEquals("Expected exactly 4 rules from fixture", 4, all.size());
     }
 }

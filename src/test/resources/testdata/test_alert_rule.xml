@@ -45,10 +45,10 @@
     <test_formats id="1" lastupdated="2025-03-21 12:00:00" />
     <test_formats id="2" lastupdated="2025-03-21 12:00:00" />
 
-    <scriptlet id="1" name="ScriptletA" code_type="GROOVY"
-        program_name="pgm_a" lastupdated="2025-01-01 00:00:00" />
-    <scriptlet id="2" name="ScriptletB" code_type="GROOVY"
-        program_name="pgm_b" lastupdated="2025-01-01 00:00:00" />
+    <scriptlet id="1" name="ScriptletA" code_type="T"
+        code_source="Source1" lastupdated="2025-01-01 00:00:00" />
+    <scriptlet id="2" name="ScriptletB" code_type="T"
+        code_source="Source2" lastupdated="2025-01-01 00:00:00" />
 
     <test_trailer id="1" name="Trailer1" text="Footer text 1"
         lastupdated="2025-01-01 00:00:00" />
@@ -89,7 +89,7 @@
         notify_sms="true" notify_email="true"
         notify_ordering_physician="false" notify_patient="false"
         notify_referring_facility="false" acknowledgment_required="false"
-        lastupdated="2025-06-01 08:00:00" />
+        lastupdated="2025-06-01 08:00:00" last_updated="2025-06-01 08:00:00" />
 
     <!-- rule 2: CRITICAL trigger, CBC, email + ordering physician, ack required -->
     <test_alert_rule id="rule-002" test_id="1"
@@ -97,7 +97,7 @@
         notify_sms="false" notify_email="true"
         notify_ordering_physician="true" notify_patient="false"
         notify_referring_facility="false" acknowledgment_required="true"
-        lastupdated="2025-06-01 08:00:00" />
+        lastupdated="2025-06-01 08:00:00" last_updated="2025-06-01 08:00:00" />
 
     <!-- rule 3: ABNORMAL trigger, Urinalysis, disabled -->
     <test_alert_rule id="rule-003" test_id="2"
@@ -105,7 +105,7 @@
         notify_sms="false" notify_email="true"
         notify_ordering_physician="false" notify_patient="false"
         notify_referring_facility="false" acknowledgment_required="false"
-        lastupdated="2025-06-02 09:00:00" />
+        lastupdated="2025-06-02 09:00:00" last_updated="2025-06-02 09:00:00" />
 
     <!-- rule 4: SPECIFIC_VALUE trigger, CBC, custom contacts, ack required -->
     <test_alert_rule id="rule-004" test_id="1"
@@ -115,6 +115,7 @@
         notify_ordering_physician="false" notify_patient="false"
         notify_referring_facility="false" notify_custom_phone="+1234567890"
         notify_custom_email="lab-alerts@hospital.org"
-        acknowledgment_required="true" lastupdated="2025-06-03 10:00:00" />
+        acknowledgment_required="true" lastupdated="2025-06-03 10:00:00"
+        last_updated="2025-06-03 10:00:00" />
 
 </dataset>
