@@ -1,4 +1,9 @@
 services:
+  harness-catalog-init:
+    image: alpine:3.21
+    volumes:
+      - ./projects/analyzer-harness/config-templates:/templates:ro
+
   astm-simulator:
     build:
       context: ./tools/analyzer-mock-server
@@ -12,7 +17,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       # Host port is parameterized so this file can also be run locally, which is
-      # what ci-parity-test.sh exists for. On macOS the AirPlay Receiver holds
+      # what the isolated CI runner exists for. On macOS the AirPlay Receiver holds
       # 5000, so a hardcoded mapping fails to bind before anything else runs.
       # Unset (as in CI) keeps the original 5000.
       - "${ASTM_SIMULATOR_PORT:-5000}:9600"
@@ -52,7 +57,7 @@ services:
     image: openelis-analyzer-bridge.ci
     container_name: openelis-analyzer-bridge
     ports:
-      - "8442:8443"
+      - "127.0.0.1:8442:8443"
       - "12000:12001"
       - "2575:2575" # MLLP HL7 listener (OGC-325)
     volumes:
@@ -90,8 +95,7 @@ services:
 
   oe.openelis.org:
     volumes:
-      - ./projects/analyzer-harness/config-templates/tests:/var/lib/openelis-global/configuration/backend/tests:ro
-      - ./projects/analyzer-harness/config-templates/test-results:/var/lib/openelis-global/configuration/backend/test-results:ro
+      - configuration-data:/var/lib/openelis-global/configuration
     environment:
       - ANALYZER_BRIDGE_URL=https://bridge.openelis.org:8443
       - ANALYZER_BRIDGE_USERNAME=${ANALYZER_BRIDGE_USERNAME:-admin}
@@ -111,3 +115,6 @@ services:
 networks:
   analyzer-net:
     driver: bridge
+
+volumes:
+  configuration-data:
