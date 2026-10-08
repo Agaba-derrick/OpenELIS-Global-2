@@ -41,7 +41,6 @@ import org.openelisglobal.test.service.TestServiceImpl;
 import org.openelisglobal.test.valueholder.Test;
 import org.openpdf.text.Document;
 import org.openpdf.text.Font;
-import org.openpdf.text.Paragraph;
 import org.openpdf.text.Phrase;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
@@ -155,16 +154,10 @@ public class ReferredOutReport extends PatientReport implements IReportParameter
         }
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PdfExportSupport.pageSize().rotate(), 36, 36, 36, 48);
-        ReportHeaderPdf.open(document, out);
-        ReportHeaderPdf.add(document,
+        ReportHeaderPdf.openRepeating(document, out,
                 MessageUtil.getMessage("report.test.status.referredOut") + ": " + reportLocation.getOrganizationName(),
-                nameLines);
-        Paragraph period = new Paragraph(
-                MessageUtil.getMessage("reports.label.referral.title") + " " + lowDateStr + " - " + highDateStr,
-                LABEL_FONT);
-        period.setSpacingBefore(6);
-        period.setSpacingAfter(8);
-        document.add(period);
+                nameLines,
+                MessageUtil.getMessage("reports.label.referral.title") + " " + lowDateStr + " - " + highDateStr);
 
         PdfPTable table = new PdfPTable(new float[] { 136, 206, 233, 120, 64, 64 });
         table.setWidthPercentage(100);
@@ -175,30 +168,46 @@ public class ReferredOutReport extends PatientReport implements IReportParameter
                 MessageUtil.getMessage("report.reason"), MessageUtil.getMessage("referral.sent.date"),
                 MessageUtil.getMessage("referral.report.date"));
         ClinicalPatientData above = null;
+        PdfPTable block = null;
         for (ClinicalPatientData item : reportItems) {
             boolean newTest = above == null || !item.getAccessionNumber().equals(above.getAccessionNumber())
                     || !item.getTestName().equals(above.getTestName());
             if (newTest) {
-                table.addCell(cell(item.getAccessionNumber(), LABEL_FONT));
-                table.addCell(cell(item.getTestName(), LABEL_FONT));
-                table.addCell(cell(withUnits(item.getResult(), item.getUom()), LABEL_FONT));
+                if (block != null) {
+                    addLocalTestBlock(table, block);
+                }
+                block = new PdfPTable(new float[] { 136, 206, 233, 120, 64, 64 });
+                block.setHeaderRows(1);
+                block.addCell(cell(item.getAccessionNumber(), LABEL_FONT));
+                block.addCell(cell(item.getTestName(), LABEL_FONT));
+                block.addCell(cell(withUnits(item.getResult(), item.getUom()), LABEL_FONT));
                 PdfPCell reason = cell(item.getReferralReason(), CELL_FONT);
                 reason.setColspan(3);
-                table.addCell(reason);
+                block.addCell(reason);
             }
-            table.addCell(cell(newTest ? MessageUtil.getMessage("report.reception") + ": "
+            block.addCell(cell(newTest ? MessageUtil.getMessage("report.reception") + ": "
                     + Objects.toString(item.getReceivedDate(), "") + "\n" + MessageUtil.getMessage("report.test") + ": "
                     + Objects.toString(item.getTestDate(), "") : "", CELL_FONT));
-            table.addCell(cell(item.getReferralTestName(), CELL_FONT));
-            table.addCell(cell(withUnits(item.getReferralResult(), item.getUom()), CELL_FONT));
-            table.addCell(cell("", CELL_FONT));
-            table.addCell(cell(item.getReferralSentDate(), CELL_FONT));
-            table.addCell(cell(item.getReferralResultReportDate(), CELL_FONT));
+            block.addCell(cell(item.getReferralTestName(), CELL_FONT));
+            block.addCell(cell(withUnits(item.getReferralResult(), item.getUom()), CELL_FONT));
+            block.addCell(cell("", CELL_FONT));
+            block.addCell(cell(item.getReferralSentDate(), CELL_FONT));
+            block.addCell(cell(item.getReferralResultReportDate(), CELL_FONT));
             above = item;
+        }
+        if (block != null) {
+            addLocalTestBlock(table, block);
         }
         document.add(table);
         document.close();
         return out.toByteArray();
+    }
+
+    private static void addLocalTestBlock(PdfPTable table, PdfPTable block) {
+        PdfPCell group = new PdfPCell(block);
+        group.setColspan(6);
+        group.setPadding(0);
+        table.addCell(group);
     }
 
     private static PdfPCell cell(String text, Font font) {
