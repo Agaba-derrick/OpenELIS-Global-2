@@ -247,7 +247,6 @@ public class OrderSearchRestController extends BaseRestController {
     private TestMethodService testMethodService;
 
     @Autowired(required = false)
-    private org.openelisglobal.microbiology.service.MicroCaseOrderDetailService microCaseOrderDetailService;
     private String ADDRESS_PART_VILLAGE_ID;
     private String ADDRESS_PART_COMMUNE_ID;
     private String ADDRESS_PART_DEPT_ID;
@@ -849,6 +848,9 @@ public class OrderSearchRestController extends BaseRestController {
                 sampleXML.put("specimenOrigin",
                         sampleItem.getSpecimenOrigin() != null ? sampleItem.getSpecimenOrigin() : "");
                 sampleXML.put("container", sampleItem.getContainer() != null ? sampleItem.getContainer() : "");
+                sampleXML.put("cultureSetNumber", sampleItem.getCultureSetNumber());
+                sampleXML.put("bodySite", sampleItem.getBodySite() != null ? sampleItem.getBodySite() : "");
+                sampleXML.put("collectionLocationId", sampleItem.getCollectionLocationId());
                 sampleXML.put("locationDetails",
                         sampleItem.getLocationDetails() != null ? sampleItem.getLocationDetails() : "");
                 sampleXML.put("gpsLatitude", sampleItem.getGpsLatitude() != null ? sampleItem.getGpsLatitude() : "");
@@ -991,8 +993,6 @@ public class OrderSearchRestController extends BaseRestController {
             // Build comprehensive sampleOrderItems with provider, site, and clinical info
             Map<String, Object> sampleOrderItems = buildSampleOrderItems(sample);
             response.put("sampleOrderItems", sampleOrderItems);
-
-            addMicrobiologyOrderDetail(response, sample);
 
             // Step progress - determine based on actual data
             boolean isVectorOrder = "V".equals(sample.getDomain());
@@ -1156,16 +1156,6 @@ public class OrderSearchRestController extends BaseRestController {
             }
         }
         return false;
-    }
-
-    void addMicrobiologyOrderDetail(Map<String, Object> response, Sample sample) {
-        if (microCaseOrderDetailService == null) {
-            return;
-        }
-        var microbiologyOrderDetail = microCaseOrderDetailService.getOrderDraft(sample.getId());
-        if (microbiologyOrderDetail != null) {
-            response.put("microbiologyOrderDetail", microbiologyOrderDetail);
-        }
     }
 
     TestSelectionDTO buildSelectedTestData(org.openelisglobal.test.valueholder.Test test) {
