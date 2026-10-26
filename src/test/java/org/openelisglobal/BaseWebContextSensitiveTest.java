@@ -279,6 +279,7 @@ public abstract class BaseWebContextSensitiveTest extends AbstractTransactionalJ
             } else {
                 jdbcConn.commit();
                 ensureAuditSystemUser();
+                ensureReferenceSeedRows();
             }
             refreshFixtureCaches();
         } catch (Exception e) {

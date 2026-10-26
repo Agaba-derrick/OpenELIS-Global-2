@@ -41,6 +41,7 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
 
@@ -69,6 +70,7 @@ public class SamplePatientEntryRestControllerIntegrationTest extends BaseWebCont
     private AlphanumAccessionValidator accessionNumbers;
     private AccessionNumberValidatorFactory accessionFactory;
     private DisplayListService displayLists;
+    private DisplayListService previousDisplayListService;
 
     @Before
     @Override
@@ -84,6 +86,8 @@ public class SamplePatientEntryRestControllerIntegrationTest extends BaseWebCont
         when(accessionFactory.getGenerator(any(AccessionFormat.class))).thenReturn(accessionNumbers);
 
         displayLists = webApplicationContext.getBean(DisplayListService.class);
+        previousDisplayListService = DisplayListService.getInstance();
+        ReflectionTestUtils.setField(DisplayListService.class, "instance", displayLists);
 
         when(displayLists.getList(ListType.TEST_SECTION_ACTIVE)).thenReturn(List.of(IMMUNOLOGY));
 
@@ -106,6 +110,7 @@ public class SamplePatientEntryRestControllerIntegrationTest extends BaseWebCont
 
     @After
     public void tearDown() {
+        ReflectionTestUtils.setField(DisplayListService.class, "instance", previousDisplayListService);
         reset(accessionFactory, displayLists);
     }
 
