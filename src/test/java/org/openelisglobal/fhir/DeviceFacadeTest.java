@@ -46,9 +46,6 @@ public class DeviceFacadeTest extends BaseWebContextSensitiveTest {
     public void setUp() throws Exception {
 
         executeDataSetWithStateManagement("testdata/facade-device.xml");
-        // The fixture seeds analyzer ids 1-3 without advancing analyzer_seq; resync so
-        // a created Device does not collide on analyzer_pk.
-        resyncSequence("clinlims.analyzer_seq", "clinlims.analyzer");
 
         servletContext = new MockServletContext();
 
@@ -117,6 +114,34 @@ public class DeviceFacadeTest extends BaseWebContextSensitiveTest {
         JsonNode device = objectMapper
                 .readTree(serve(buildFhirRequest("GET", "/Device/" + COBAS_UUID)).getContentAsString());
         assertEquals("deleted device must not read back as active", "inactive", device.get("status").asText());
+    }
+
+    @Test
+    public void retiredDeviceCannotBeRestoredByWritingItsFhirRepresentation() throws Exception {
+        Analyzer analyzer = analyzerByUuid(COBAS_UUID);
+        analyzer.setStatus(Analyzer.AnalyzerStatus.RETIRED);
+        analyzer.setActive(false);
+        analyzerService.update(analyzer);
+        MockHttpServletResponse read = serve(buildFhirRequest("GET", "/Device/" + COBAS_UUID));
+        assertEquals("inactive", objectMapper.readTree(read.getContentAsString()).get("status").asText());
+
+        MockHttpServletRequest update = buildFhirRequest("PUT", "/Device/" + COBAS_UUID);
+        update.setContentType("application/fhir+json");
+        update.setContent(read.getContentAsByteArray());
+        assertEquals(422, serve(update).getStatus());
+        assertEquals(Analyzer.AnalyzerStatus.RETIRED, analyzerByUuid(COBAS_UUID).getStatus());
+    }
+
+    @Test
+    public void deletingARetiredDevicePreservesRetirement() throws Exception {
+        Analyzer analyzer = analyzerByUuid(COBAS_UUID);
+        analyzer.setStatus(Analyzer.AnalyzerStatus.RETIRED);
+        analyzer.setActive(false);
+        analyzerService.update(analyzer);
+
+        assertEquals(204, serve(buildFhirRequest("DELETE", "/Device/" + COBAS_UUID)).getStatus());
+        assertEquals(Analyzer.AnalyzerStatus.RETIRED, analyzerByUuid(COBAS_UUID).getStatus());
+        assertFalse(analyzerByUuid(COBAS_UUID).isActive());
     }
 
     @Test

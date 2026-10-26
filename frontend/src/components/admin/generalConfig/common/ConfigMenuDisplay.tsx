@@ -28,7 +28,6 @@ import GenericConfigEdit from "../../generalConfig/common/GenericConfigEdit";
 
 interface ConfigMenuDisplayProps {
   id: string;
-  label: string;
   menuType: string;
 }
 
@@ -73,7 +72,7 @@ interface NotificationContextValue {
   notificationVisible: boolean;
 }
 
-function ConfigMenuDisplay(props: ConfigMenuDisplayProps) {
+function ConfigMenuDisplayContent(props: ConfigMenuDisplayProps) {
   const { notificationVisible } = useContext(
     NotificationContext,
   ) as NotificationContextValue;
@@ -95,7 +94,7 @@ function ConfigMenuDisplay(props: ConfigMenuDisplayProps) {
   let breadcrumbs = [
     { label: "home.label", link: "/" },
     { label: "breadcrums.admin.managment", link: "/MasterListsPage" },
-    { label: `${props.label}`, link: `/MasterListsPage/${props.menuType}` },
+    { label: props.id, link: `/MasterListsPage/${props.menuType}` },
   ];
 
   function handleModify(event: FormEvent<HTMLFormElement>) {
@@ -376,4 +375,6 @@ function ConfigMenuDisplay(props: ConfigMenuDisplayProps) {
   );
 }
 
-export default ConfigMenuDisplay;
+export default function ConfigMenuDisplay(props: ConfigMenuDisplayProps) {
+  return <ConfigMenuDisplayContent key={props.menuType} {...props} />;
+}

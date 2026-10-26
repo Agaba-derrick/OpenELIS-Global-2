@@ -15,6 +15,9 @@ import MicrobiologyService from "./MicrobiologyService";
 import { formatMicrobiologyEnum } from "./MicrobiologyLabels";
 
 const EMPTY_ISOLATES = [];
+// Matched by key, not by label: labels follow the user's language (OGC-1507).
+const PRE_ANALYTICAL_KEY = "nce.category.preanalytical";
+const SPECIMEN_LOST_KEY = "microbiology.uat.nce.specimenLost";
 
 const initialForm = {
   categoryId: "",
@@ -34,7 +37,6 @@ const CaseNonconformancePanel = ({
   caseId,
   mode,
   isolates = EMPTY_ISOLATES,
-  workflowType,
   service = MicrobiologyService,
   onComplete,
   onCancel,
@@ -71,12 +73,16 @@ const CaseNonconformancePanel = ({
         setCategories(safeCategories);
         setReportingUnits(Array.isArray(unitRows) ? unitRows : []);
         if (!lostMode) {
-          const preAnalytical = safeCategories.find((category) =>
-            String(category.name || "")
-              .toLowerCase()
-              .replace(/[^a-z]/g, "")
-              .includes("preanalytical"),
-          );
+          const preAnalytical =
+            safeCategories.find(
+              (category) => category.displayKey === PRE_ANALYTICAL_KEY,
+            ) ||
+            safeCategories.find((category) =>
+              String(category.name || "")
+                .toLowerCase()
+                .replace(/[^a-z]/g, "")
+                .includes("preanalytical"),
+            );
           if (preAnalytical) {
             setForm((current) => ({
               ...current,
@@ -84,11 +90,12 @@ const CaseNonconformancePanel = ({
             }));
           }
         } else {
-          const match = safeCategories
-            .flatMap((category) =>
-              (category.types || []).map((type) => ({ category, type })),
-            )
-            .find(({ type }) =>
+          const pairs = safeCategories.flatMap((category) =>
+            (category.types || []).map((type) => ({ category, type })),
+          );
+          const match =
+            pairs.find(({ type }) => type.displayKey === SPECIMEN_LOST_KEY) ||
+            pairs.find(({ type }) =>
               String(type.name || "")
                 .toLowerCase()
                 .includes("specimen lost"),
@@ -137,7 +144,7 @@ const CaseNonconformancePanel = ({
           ),
         ),
       ),
-      service.getAntibiotics(workflowType),
+      service.getAntibiotics(),
     ])
       .then(([runsByIsolate, antibioticRows]) => {
         if (!active) {
@@ -163,7 +170,7 @@ const CaseNonconformancePanel = ({
     return () => {
       active = false;
     };
-  }, [form.disposition, intl, isolates, lostMode, service, workflowType]);
+  }, [form.disposition, intl, isolates, lostMode, service]);
 
   const selectedCategory = useMemo(
     () =>

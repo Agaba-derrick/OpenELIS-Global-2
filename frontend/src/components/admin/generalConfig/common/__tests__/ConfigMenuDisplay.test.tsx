@@ -56,7 +56,9 @@ describe("ConfigMenuDisplay", () => {
   let onServer: { value: string };
   let reloadConfiguration: ReturnType<typeof vi.fn>;
 
-  const renderScreen = () =>
+  const renderScreen = (
+    content = <ConfigMenuDisplay id="admin.formEntryConfig" menuType={MENU} />,
+  ) =>
     render(
       <MemoryRouter>
         <IntlProvider locale="en" messages={messages}>
@@ -69,11 +71,7 @@ describe("ConfigMenuDisplay", () => {
               }}
             >
               <ConfigurationContext.Provider value={{ reloadConfiguration }}>
-                <ConfigMenuDisplay
-                  id="admin.formEntryConfig"
-                  label="Non Conformity"
-                  menuType={MENU}
-                />
+                {content}
               </ConfigurationContext.Provider>
             </NotificationContext.Provider>
           </QueryClientProvider>
@@ -105,10 +103,68 @@ describe("ConfigMenuDisplay", () => {
     (postToOpenElisServer as ReturnType<typeof vi.fn>).mockReset();
   });
 
+  it("clears old rows and selection while a different menu loads", async () => {
+    let completeRead: ((response: unknown) => void) | undefined;
+    (getFromOpenElisServer as ReturnType<typeof vi.fn>).mockImplementation(
+      (url: string, callback: (response: unknown) => void) => {
+        if (url === `/rest/${MENU}`)
+          return callback({ menuList: [config("false")] });
+        if (url === "/rest/SiteInformationMenu") completeRead = callback;
+      },
+    );
+    function Switcher() {
+      const [menu, setMenu] = React.useState(MENU);
+      return (
+        <>
+          <button onClick={() => setMenu("SiteInformationMenu")}>
+            Switch menu
+          </button>
+          <ConfigMenuDisplay id="admin.formEntryConfig" menuType={menu} />
+        </>
+      );
+    }
+    renderScreen(<Switcher />);
+    fireEvent.click(await screen.findByLabelText("selectRow"));
+    expect(screen.getByRole("button", { name: "Modify" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Switch menu" }));
+    expect(screen.queryByText("Results only")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Modify" })).toBeDisabled();
+    await waitFor(() => expect(completeRead).toBeDefined());
+    await act(async () =>
+      completeRead?.({
+        menuList: [
+          { ...config("true"), id: "8", description: "24 hour clock" },
+        ],
+      }),
+    );
+    expect(await screen.findByText("24 hour clock")).toBeInTheDocument();
+    expect(screen.getByLabelText("selectRow")).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Modify" })).toBeDisabled();
+  });
+
   it("lists the configuration values", async () => {
     renderScreen();
 
     expect(await screen.findByText("Results only")).toBeInTheDocument();
+  });
+
+  it("names the menu in its breadcrumb with its translated title", async () => {
+    const errors = vi.spyOn(console, "error");
+    renderScreen();
+    await screen.findByText("Results only");
+
+    const crumbs = screen
+      .getByRole("navigation", { name: /breadcrumb/i })
+      .querySelectorAll("li");
+    const current = crumbs[crumbs.length - 1];
+    expect(current).toHaveTextContent(messages["admin.formEntryConfig"]);
+    expect(
+      errors.mock.calls.some(([message]) =>
+        String(message).includes("MISSING_TRANSLATION"),
+      ),
+    ).toBe(false);
+    errors.mockRestore();
   });
 
   it("returns to the list showing the saved value", async () => {
@@ -243,7 +299,6 @@ describe("ConfigMenuDisplay with an image row", () => {
             >
               <ConfigMenuDisplay
                 id="admin.formEntryConfig"
-                label="Printed Report"
                 menuType={IMAGE_MENU}
               />
             </NotificationContext.Provider>
@@ -379,7 +434,6 @@ describe("ConfigMenuDisplay with an image row", () => {
             >
               <ConfigMenuDisplay
                 id="admin.formEntryConfig"
-                label="Printed Report"
                 menuType={IMAGE_MENU}
               />
             </NotificationContext.Provider>
@@ -420,11 +474,7 @@ describe("ConfigMenuDisplay behind a route", () => {
   const RouteHost = ({ useRenderProp }: { useRenderProp: boolean }) => {
     const [, setTick] = React.useState(0);
     const screenEl = (
-      <ConfigMenuDisplay
-        id="admin.formEntryConfig"
-        label="Non Conformity"
-        menuType={MENU}
-      />
+      <ConfigMenuDisplay id="admin.formEntryConfig" menuType={MENU} />
     );
     return (
       <MemoryRouter initialEntries={["/menu"]}>
