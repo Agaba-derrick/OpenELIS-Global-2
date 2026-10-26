@@ -166,16 +166,14 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
     }
 
     @Test
-    public void createAliquot_invalidParentId_returnsInvalidRequestError() throws Exception {
+    public void createAliquot_invalidParentId_returnsNotFound() throws Exception {
         CreateAliquotForm form = new CreateAliquotForm();
         form.setParentSampleItemId("99999");
         form.setQuantityToTransfer(new BigDecimal("1.0"));
         form.setNumberOfAliquots(1);
 
         mockMvc.perform(post(BASE_PATH + "/aliquot").contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("Invalid Request"))
-                .andExpect(jsonPath("$.message").value("Parent sample item not found: 99999"));
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isNotFound());
     }
 
     @Test
@@ -235,15 +233,25 @@ public class SampleManagementRestControllerTest extends BaseWebContextSensitiveT
     }
 
     @Test
-    public void addTestsToSamples_invalidSampleItemId_returnsInvalidRequestError() throws Exception {
+    public void addTestsToSamples_invalidSampleItemId_returnsNotFound() throws Exception {
         AddTestsForm form = new AddTestsForm();
         form.setSampleItemIds(Arrays.asList("99999"));
         form.setTestIds(Arrays.asList("1"));
 
         mockMvc.perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isNotFound());
+    }
+
+    @Test
+    public void addTestsToSamples_invalidTestId_returnsInvalidRequestError() throws Exception {
+        AddTestsForm form = new AddTestsForm();
+        form.setSampleItemIds(Arrays.asList("10001"));
+        form.setTestIds(Arrays.asList("99999"));
+
+        mockMvc.perform(post(BASE_PATH + "/add-tests").contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(form)).session(session)).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Invalid Request"))
-                .andExpect(jsonPath("$.message").value("Sample item not found: 99999"));
+                .andExpect(jsonPath("$.message").value("Test not found: 99999"));
     }
 
     @Test
