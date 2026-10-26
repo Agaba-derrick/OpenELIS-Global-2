@@ -1,17 +1,25 @@
 package org.openelisglobal.shipment.service;
 
+import java.sql.Timestamp;
 import java.util.List;
+import javax.sql.DataSource;
+import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.openelisglobal.BaseWebContextSensitiveTest;
+import org.openelisglobal.common.exception.LIMSRuntimeException;
 import org.openelisglobal.shipment.valueholder.Shipment;
 import org.openelisglobal.shipment.valueholder.ShipmentStatus;
 import org.openelisglobal.shipment.valueholder.ShippingBox;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
+
+    @Autowired
+    private DataSource dataSource;
 
     @Autowired
     private ShipmentService shipmentService;
@@ -19,6 +27,16 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
     @Before
     public void init() throws Exception {
         executeDataSetWithStateManagement("testdata/shipment_service.xml");
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource);
+        jdbc.update(
+                "DELETE FROM clinlims.shipment WHERE id IN (1, 2) OR shipping_box_id IN (1, 2, 3) OR tracking_number = 'TRK2001'");
+        jdbc.update("DELETE FROM clinlims.shipping_box WHERE id IN (1, 2, 3)");
+        jdbc.update(
+                "DELETE FROM clinlims.organization WHERE id IN (1, 2) AND name IN ('Central Laboratory', 'Regional Clinic')");
     }
 
     @Test
@@ -72,36 +90,39 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
     }
 
     /**
-     * KNOWN LIMITATION: The {@code shipment} table has a NOT NULL constraint on
-     * {@code sys_user_id}, but the {@link Shipment} entity does not map this column
-     * via JPA (it inherits {@code sysUserId} as {@code @Transient} from
-     * {@code BaseObject}). Hibernate therefore omits the column from the INSERT
-     * statement, causing a {@code PSQLException} at flush time. Production fix
-     * required: add {@code @Column(name = "sys_user_id", nullable = false)} to
-     * {@link Shipment} or add a database-level DEFAULT for that column.
+     * KNOWN LIMITATION: While {@code Shipment.systemUserId} is now mapped via JPA
+     * on develop (see #4409), {@link ShipmentServiceImpl#createShipment} still
+     * relies on audit/caller synchronization of {@code sysUserId} into
+     * {@code systemUserId} before insert (pending PR #3657). Once #3657 lands, this
+     * ignore should be lifted. Note that this test uses the fixture's unshipped box
+     * 3 to keep the create scenario clean and asserts the persisted
+     * {@code systemUserId}.
      */
-    @Ignore("Production bug: sys_user_id is unmapped in Shipment entity but is NOT NULL in DB; INSERT always fails")
+    @Ignore("Blocked by #3657: Shipment.systemUserId is mapped via JPA, but ShipmentService.createShipment does not yet synchronize BaseObject.sysUserId to systemUserId; pending #3657 before lifting ignore")
     @Test
     public void createShipment_shouldGenerateIdAndDefaultToPending() {
-        Shipment existing = shipmentService.getShipmentById(1);
-        ShippingBox box = existing.getShippingBox();
+        ShippingBox box = new ShippingBox();
+        box.setId(3);
 
         Shipment newShipment = new Shipment();
         newShipment.setShippingBox(box);
         newShipment.setCourier("UPS");
         newShipment.setTrackingNumber("TRK2001");
         newShipment.setSysUserId("1");
+        newShipment.setSystemUserId(1);
 
         Shipment created = shipmentService.createShipment(newShipment);
 
         Assert.assertNotNull(created.getId());
         Assert.assertEquals(ShipmentStatus.PENDING, created.getStatus());
         Assert.assertEquals("UPS", created.getCourier());
+        Assert.assertEquals(Integer.valueOf(1), created.getSystemUserId());
         Assert.assertNotNull(created.getLastupdated());
 
         Shipment fetched = shipmentService.getShipmentById(created.getId());
         Assert.assertNotNull(fetched);
         Assert.assertEquals("TRK2001", fetched.getTrackingNumber());
+        Assert.assertEquals(Integer.valueOf(1), fetched.getSystemUserId());
     }
 
     /**
@@ -111,11 +132,14 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
      * {@code BaseObject}, Hibernate uses it for optimistic locking. Pre-changing
      * the version value causes Hibernate to generate
      * {@code WHERE lastupdated = <new_time>} which matches 0 rows, resulting in an
-     * {@code OptimisticLockException}. Production fix required: remove the manual
+     * {@code OptimisticLockException}. Note that {@code updateShipmentStatus} has
+     * the same {@code setLastupdated} pattern but its tests pass because the entity
+     * is managed (loaded inside the same service transaction) rather than detached.
+     * Production fix required (tracked in #3654): remove the manual
      * {@code setLastupdated()} call from the service and let Hibernate manage the
      * {@code @Version} field.
      */
-    @Ignore("Production bug: service pre-sets @Version field before merge causing OptimisticLockException")
+    @Ignore("Production bug (#3654): service pre-sets @Version field before merge on detached entity causing OptimisticLockException; updateShipmentStatus avoids this because the entity is managed in-transaction")
     @Test
     public void updateShipment_shouldModifyExistingFields() {
         Shipment shipment = shipmentService.getShipmentById(1);
@@ -173,5 +197,39 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
 
         Shipment deleted = shipmentService.getShipmentById(1);
         Assert.assertNull("Shipment should be null after deletion", deleted);
+    }
+
+    @Test
+    public void getShipmentById_unknownId_shouldReturnNull() {
+        Shipment shipment = shipmentService.getShipmentById(99999);
+        Assert.assertNull("Non-existent shipment should return null", shipment);
+    }
+
+    @Test
+    public void updateShipmentStatus_unknownId_shouldThrowException() {
+        try {
+            shipmentService.updateShipmentStatus(99999, ShipmentStatus.IN_TRANSIT);
+            Assert.fail("Expected LIMSRuntimeException for unknown shipment ID");
+        } catch (LIMSRuntimeException e) {
+            Assert.assertTrue(e.getCause() instanceof IllegalArgumentException);
+            Assert.assertEquals("Shipment not found with ID: 99999", e.getCause().getMessage());
+        }
+    }
+
+    @Test
+    public void updateShipmentStatus_alreadyInTransit_shouldPreserveShippedDate() {
+        Shipment initial = shipmentService.getShipmentById(2);
+        Timestamp originalShippedDate = initial.getShippedDate();
+        Assert.assertNotNull("Fixture shipment 2 should already have a shippedDate", originalShippedDate);
+
+        Shipment updated = shipmentService.updateShipmentStatus(2, ShipmentStatus.IN_TRANSIT);
+
+        Assert.assertEquals(ShipmentStatus.IN_TRANSIT, updated.getStatus());
+        Assert.assertEquals("Shipped date must be preserved across another IN_TRANSIT update", originalShippedDate,
+                updated.getShippedDate());
+
+        Shipment fetched = shipmentService.getShipmentById(2);
+        Assert.assertEquals("Persisted shipped date must be preserved across another IN_TRANSIT update",
+                originalShippedDate, fetched.getShippedDate());
     }
 }
