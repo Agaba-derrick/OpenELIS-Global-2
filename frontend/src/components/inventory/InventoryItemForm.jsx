@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useContext,
-  useCallback,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useContext, useCallback } from "react";
 import {
   Modal,
   TextInput,
@@ -19,6 +13,7 @@ import { FormattedMessage, useIntl } from "react-intl";
 import { NotificationContext } from "../layout/Layout";
 import { NotificationKinds } from "../common/CustomNotification";
 import { InventoryItemAPI } from "./InventoryService";
+import { useIsMounted } from "./useIsMounted";
 
 // Same rule as the server's CodeGenerator.toCode; it does not truncate, the
 // server does, so a code that grows on upper-casing (e.g. ß to SS) is cut there.
@@ -35,6 +30,7 @@ const EMPTY_FORM = {
   category: "",
   manufacturer: "",
   catalogNumber: "",
+  upc: "",
   units: "",
   lowStockThreshold: 0,
   expirationAlertDays: "",
@@ -52,6 +48,7 @@ const InventoryItemForm = ({
   onSave,
   item = null,
   observedLeadTime = null,
+  initialUpc = null,
 }) => {
   const intl = useIntl();
   const { notificationVisible, setNotificationVisible, addNotification } =
@@ -70,17 +67,13 @@ const InventoryItemForm = ({
   const isEdit = !!item;
 
   // Form state
-  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [formData, setFormData] = useState(
+    initialUpc ? { ...EMPTY_FORM, upc: initialUpc } : EMPTY_FORM,
+  );
 
   const [saving, setSaving] = useState(false);
   const normalizedCode = toCode(formData.code);
-  const isMountedRef = useRef(true);
-  useEffect(() => {
-    isMountedRef.current = true;
-    return () => {
-      isMountedRef.current = false;
-    };
-  }, []);
+  const isMounted = useIsMounted();
 
   const [error, setError] = useState(null);
   const [tagSuggestions, setTagSuggestions] = useState([]);
@@ -91,7 +84,7 @@ const InventoryItemForm = ({
     const loadTags = async () => {
       try {
         const tags = await InventoryItemAPI.getTags();
-        if (!isMountedRef.current) return;
+        if (!isMounted()) return;
         setTagSuggestions(tags);
       } catch (err) {
         // Not fatal: a tag can still be typed.
@@ -111,6 +104,7 @@ const InventoryItemForm = ({
         category: item.category || "",
         manufacturer: item.manufacturer || "",
         catalogNumber: item.catalogNumber || "",
+        upc: item.upc || "",
         units: item.units || "",
         lowStockThreshold: item.lowStockThreshold || 0,
         expirationAlertDays: item.expirationAlertDays ?? "",
@@ -122,9 +116,9 @@ const InventoryItemForm = ({
         leadTimeDays: item.leadTimeDays ?? "",
       });
     } else {
-      setFormData(EMPTY_FORM);
+      setFormData(initialUpc ? { ...EMPTY_FORM, upc: initialUpc } : EMPTY_FORM);
     }
-  }, [item, open]);
+  }, [item, open, initialUpc]);
 
   // Handle input changes
   const handleChange = (field, value) => {
@@ -179,7 +173,7 @@ const InventoryItemForm = ({
   // Validate form
   const validate = () => {
     if (!formData.name?.trim()) {
-      setError("Item name is required");
+      setError(intl.formatMessage({ id: "catalog.item.error.nameRequired" }));
       return false;
     }
     return true;
@@ -220,6 +214,7 @@ const InventoryItemForm = ({
       sanitizedData.compatibleAnalyzers = formData.compatibleAnalyzers;
       sanitizedData.testsPerKit = optionalNumber(formData.testsPerKit);
       sanitizedData.catalogNumber = formData.catalogNumber;
+      sanitizedData.upc = formData.upc?.trim() || null;
       sanitizedData.expirationAlertDays = optionalNumber(
         formData.expirationAlertDays,
       );
@@ -232,7 +227,7 @@ const InventoryItemForm = ({
         sanitizedData.code = toCode(formData.code) || null;
         await InventoryItemAPI.create(sanitizedData);
       }
-      if (!isMountedRef.current) return;
+      if (!isMounted()) return;
       setSaving(false);
       onSave();
     } catch (err) {
@@ -242,7 +237,7 @@ const InventoryItemForm = ({
         ? intl.formatMessage({ id: err.errorCode }, err.params)
         : err.message ||
           intl.formatMessage({ id: "catalog.item.error.saveGeneric" });
-      if (!isMountedRef.current) return;
+      if (!isMounted()) return;
       setError(errorMessage);
       setSaving(false);
       notify({
@@ -390,6 +385,13 @@ const InventoryItemForm = ({
             labelText={<FormattedMessage id="catalog.item.catalogNumber" />}
             value={formData.catalogNumber}
             onChange={(e) => handleChange("catalogNumber", e.target.value)}
+          />
+          <TextInput
+            id="upc"
+            labelText={<FormattedMessage id="catalog.item.upc" />}
+            helperText={intl.formatMessage({ id: "catalog.item.upc.help" })}
+            value={formData.upc}
+            onChange={(e) => handleChange("upc", e.target.value)}
           />
           <TextInput
             id="units"

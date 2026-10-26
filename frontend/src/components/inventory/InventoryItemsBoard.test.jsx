@@ -7,6 +7,7 @@ import InventoryItemsBoard from "./InventoryItemsBoard";
 import { NotificationContext } from "../layout/Layout";
 import {
   InventoryBoardAPI,
+  InventoryCountAPI,
   InventoryItemAPI,
   InventoryLotAPI,
   InventoryManagementAPI,
@@ -25,6 +26,7 @@ vi.mock("./InventoryService", () => ({
     activate: vi.fn(),
   },
   InventoryManagementAPI: { consume: vi.fn() },
+  InventoryCountAPI: { record: vi.fn() },
 }));
 
 const { modalStub } = vi.hoisted(() => ({
@@ -67,6 +69,9 @@ vi.mock("./UpdateQCStatusModal", () =>
 );
 vi.mock("./DisposeLotModal", () =>
   modalStub("dispose", (p) => `lot:${p.lot.id}`),
+);
+vi.mock("./QuickReceiveModal", () =>
+  modalStub("quick-receive", (p) => `receive:item:${p.initialItemId}`),
 );
 vi.mock("./ManageTagsModal", () =>
   modalStub("manage-tags", () => "manage-tags"),
@@ -181,7 +186,8 @@ const lot = (overrides) => ({
 });
 
 // Lot expiry ships as epoch milliseconds (java.sql.Timestamp), not an ISO string.
-const expiry = (daysFromNow) => shiftDays(daysFromNow).getTime();
+// Expiry tags count elapsed 24-hour periods, including across daylight-saving changes.
+const expiry = (daysFromNow) => TODAY.getTime() + daysFromNow * 86400000;
 
 const LOTS = [
   lot({
@@ -664,6 +670,165 @@ describe("InventoryItemsBoard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("shows when an item was last counted, and says so when it never was", async () => {
+    await renderBoard([
+      { ...CARTRIDGE, lastCountedOn: isoDay(-3) },
+      { ...MALARIA, lastCountedOn: null },
+    ]);
+
+    expect(rowNamed(CARTRIDGE.name)).toHaveTextContent(dayLabel(-3));
+    expect(rowNamed(MALARIA.name)).toHaveTextContent("Never counted");
+  });
+
+  describe("count mode", () => {
+    const enterCountMode = () =>
+      fireEvent.click(screen.getByRole("button", { name: "Count mode" }));
+
+    const countField = (lotId) =>
+      screen.getByLabelText(new RegExp(`^Counted quantity`, "i"), {
+        selector: `#count-${lotId}`,
+      });
+
+    beforeEach(() => {
+      InventoryCountAPI.record.mockResolvedValue({ adjusted: 1, confirmed: 0 });
+    });
+
+    it("turns the on-hand cell into a count entry for an item with one lot", async () => {
+      await renderBoard();
+      enterCountMode();
+
+      const row = rowNamed(SYPHILIS.name);
+      expect(within(row).getByRole("spinbutton")).toBeInTheDocument();
+      expect(row).toHaveTextContent("of 8 tests");
+    });
+
+    it("gives the row and the lot table their own input for a one-lot item", async () => {
+      await renderBoard();
+      enterCountMode();
+      fireEvent.click(screen.getByRole("button", { name: SYPHILIS.name }));
+
+      const ids = [...document.querySelectorAll('input[id^="count-"]')].map(
+        (input) => input.id,
+      );
+      expect(ids).toContain("count-201");
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it("refuses to count an item with several lots from the row", async () => {
+      await renderBoard();
+      enterCountMode();
+
+      const row = rowNamed(CARTRIDGE.name);
+      expect(within(row).queryByRole("spinbutton")).not.toBeInTheDocument();
+      expect(row).toHaveTextContent("Count each lot below");
+    });
+
+    it("measures against what is on the shelf, not against usable stock", async () => {
+      await renderBoard();
+      enterCountMode();
+
+      expect(rowNamed(CARTRIDGE.name)).toHaveTextContent(
+        "17 tests expected here",
+      );
+    });
+
+    it("sends only the lots a count was typed into", async () => {
+      await renderBoard();
+      enterCountMode();
+      fireEvent.click(screen.getByRole("button", { name: CARTRIDGE.name }));
+
+      fireEvent.change(countField(102), { target: { value: "6" } });
+      fireEvent.click(screen.getByRole("button", { name: "Confirm count" }));
+
+      await waitFor(() => expect(InventoryCountAPI.record).toHaveBeenCalled());
+      expect(InventoryCountAPI.record).toHaveBeenCalledWith([
+        { lotId: 102, countedQuantity: 6 },
+      ]);
+    });
+
+    it("cannot confirm a count with nothing counted", async () => {
+      await renderBoard();
+      enterCountMode();
+
+      expect(
+        screen.getByRole("button", { name: "Confirm count" }),
+      ).toBeDisabled();
+    });
+
+    it("shows the difference rather than leaving it to be worked out", async () => {
+      await renderBoard();
+      enterCountMode();
+      fireEvent.click(screen.getByRole("button", { name: CARTRIDGE.name }));
+
+      fireEvent.change(countField(102), { target: { value: "4" } });
+
+      expect(screen.getByText("-3")).toBeInTheDocument();
+    });
+
+    it("says so when a count agrees with the record", async () => {
+      await renderBoard();
+      enterCountMode();
+      fireEvent.click(screen.getByRole("button", { name: CARTRIDGE.name }));
+
+      fireEvent.change(countField(102), { target: { value: "7" } });
+
+      expect(screen.getByText("Matches")).toBeInTheDocument();
+    });
+
+    it("abandoning the mode discards every count typed", async () => {
+      await renderBoard();
+      enterCountMode();
+      fireEvent.click(screen.getByRole("button", { name: CARTRIDGE.name }));
+      fireEvent.change(countField(102), { target: { value: "4" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(InventoryCountAPI.record).not.toHaveBeenCalled();
+
+      enterCountMode();
+      expect(document.querySelector("#count-102")).toHaveValue(null);
+    });
+
+    it("says which shelf is being counted when one is scoped", async () => {
+      await renderBoard();
+      fireEvent.change(screen.getByLabelText("Filter by Location"), {
+        target: { value: "Fridge 2" },
+      });
+      enterCountMode();
+
+      expect(screen.getByText(/Counting Fridge 2/)).toBeInTheDocument();
+    });
+
+    it("counts only the lots on the scoped shelf", async () => {
+      await renderBoard();
+      fireEvent.change(screen.getByLabelText("Filter by Location"), {
+        target: { value: "Fridge 2" },
+      });
+      enterCountMode();
+
+      const row = rowNamed(CARTRIDGE.name);
+      expect(within(row).getByRole("spinbutton")).toBeInTheDocument();
+      expect(row).toHaveTextContent("of 5 tests");
+    });
+
+    it("warns that an unscoped count covers everything", async () => {
+      await renderBoard();
+      enterCountMode();
+
+      expect(screen.getByText(/Counting everywhere/)).toBeInTheDocument();
+    });
+  });
+
+  it("does not refetch while it simply stays visible", async () => {
+    await renderBoard();
+    expect(InventoryBoardAPI.get).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "gene" },
+    });
+
+    expect(InventoryBoardAPI.get).toHaveBeenCalledTimes(1);
+  });
+
   it("opens the tag directory from the toolbar", async () => {
     await renderBoard();
 
@@ -836,7 +1001,7 @@ describe("InventoryItemsBoard", () => {
       await openRowMenu(MALARIA.name);
       fireEvent.click(screen.getByText("Receive stock"));
 
-      expect(screen.getByTestId("lot-entry-target")).toHaveTextContent(
+      expect(screen.getByTestId("quick-receive-target")).toHaveTextContent(
         `receive:item:${MALARIA.itemId}`,
       );
     });
@@ -931,7 +1096,7 @@ describe("InventoryItemsBoard", () => {
 
       await openRowMenu(MALARIA.name);
       fireEvent.click(screen.getByText("Receive stock"));
-      fireEvent.click(screen.getByText("lot-entry-save"));
+      fireEvent.click(screen.getByText("quick-receive-save"));
 
       await waitFor(() =>
         expect(InventoryBoardAPI.get).toHaveBeenCalledTimes(2),
@@ -1228,5 +1393,56 @@ describe("InventoryItemsBoard", () => {
       expect(screen.getByRole("dialog")).toBeInTheDocument();
       expect(InventoryBoardAPI.get).toHaveBeenCalledTimes(1);
     });
+  });
+  const PAGED_ITEMS = Array.from({ length: 30 }, (_, index) => ({
+    ...CARTRIDGE,
+    itemId: 1000 + index,
+    name: `Paged item ${String(index + 1).padStart(2, "0")}`,
+    code: `PG-${index + 1}`,
+    tags: [],
+  }));
+
+  it("pages the board at 25 rows and returns to page 1 when the search changes", async () => {
+    await renderBoard(PAGED_ITEMS, []);
+
+    expect(bodyRows()).toHaveLength(25);
+    expect(screen.getByText(/1-25 of 30 items/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Next Page" }));
+    expect(bodyRows()).toHaveLength(5);
+    expect(rowNamed("Paged item 30")).toBeTruthy();
+
+    fireEvent.change(screen.getByRole("searchbox"), {
+      target: { value: "Paged item 0" },
+    });
+    expect(bodyRows()).toHaveLength(9);
+    expect(screen.queryByRole("button", { name: "Next Page" })).toBeNull();
+  });
+
+  it("shows every row in count mode, however many pages the board has", async () => {
+    await renderBoard(PAGED_ITEMS, []);
+    expect(bodyRows()).toHaveLength(25);
+
+    fireEvent.click(screen.getByRole("button", { name: "Count mode" }));
+    expect(bodyRows()).toHaveLength(30);
+    expect(screen.queryByRole("button", { name: "Next Page" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Leave count mode" }));
+    expect(bodyRows()).toHaveLength(25);
+  });
+
+  it("keeps the pager when a larger page size fits every row", async () => {
+    await renderBoard(PAGED_ITEMS, []);
+
+    fireEvent.change(screen.getByLabelText("Items per page"), {
+      target: { value: "50" },
+    });
+    expect(bodyRows()).toHaveLength(30);
+
+    fireEvent.change(screen.getByLabelText("Items per page"), {
+      target: { value: "25" },
+    });
+    expect(bodyRows()).toHaveLength(25);
+    expect(screen.getByText(/1-25 of 30 items/)).toBeInTheDocument();
   });
 });
