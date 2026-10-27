@@ -1,6 +1,7 @@
 # REST Controller Testing — Patterns & Reference
 
-OpenELIS Global 2 supports two primary approaches for testing REST controllers:
+OpenELIS Global 2 supports three distinct approaches for testing REST
+controllers:
 
 ---
 
@@ -48,8 +49,8 @@ responses.
 - **No Spring Context Startup**: Runs unit-test fast (<100ms per test file).
 - **No Database / DBUnit Datasets**: Does not require PostgreSQL containers,
   schema creation, or XML datasets.
-- **Isolated Testing**: Tests only the HTTP mapping, parameter handling, and
-  controller logic.
+- **Isolated Testing**: Tests only HTTP routing, payload binding, parameter
+  validation, and controller response mapping.
 
 ### Standard Setup
 
@@ -106,8 +107,7 @@ public class MyFeatureRestControllerTest {
 ## Pattern 2: Web Context Integration Tests (With Database / Datasets)
 
 Use this pattern when testing end-to-end HTTP endpoints that interact with
-database transactions, Spring Security filters, or complex framework component
-scanning.
+database transactions, entity queries, and data persistence round-trips.
 
 ### Infrastructure & Inheritance
 
@@ -117,16 +117,40 @@ Inheriting from `BaseWebContextSensitiveTest` provides:
 - A pre-configured `super.mockMvc` bound to the full DispatcherServlet context.
 - DBUnit helper methods like `executeDataSetWithStateManagement(path)`.
 
-### Session Authentication
+### Authentication vs. Legacy Session Data Distinction
 
-Every secured endpoint in `BaseWebContextSensitiveTest` requires session
-authentication in `setUp()`:
+It is critical to distinguish between the **authenticated Spring Security
+principal** and **legacy OpenELIS session attributes**:
+
+1. **`BaseWebContextSensitiveTest` Security Context**:
+   - `BaseWebContextSensitiveTest` is annotated with `@WithDaemonUser`, which
+     installs a `DaemonAuthenticationToken("1")` with `ROLE_SYSTEM` directly
+     into Spring's `SecurityContextHolder`.
+   - Its `MockMvc` is built via
+     `MockMvcBuilders.webAppContextSetup(this.webApplicationContext).build()`,
+     which **does not register the security filter chain** (it does not call
+     `.apply(springSecurity())`).
+   - Furthermore, `AppTestConfig` excludes `SecurityConfig`, so
+     `@EnableMethodSecurity` is inactive and method-level security
+     (`@PreAuthorize`) is inert.
+   - Consequently, `BaseWebContextSensitiveTest` **cannot** be used to prove
+     anonymous (401) or role-denied (403) authorization enforcement.
+2. **`UserSessionData` in `MockHttpSession`**:
+   - Setting `session.setAttribute(IActionConstants.USER_SESSION_DATA, usd)`
+     supplies legacy controller-level user state (such as `systemUserId`, user
+     language, and lab context) consumed by `BaseRestController` or
+     `ControllerUtils.getSysUserId()`.
+   - It **does not** authenticate or select the Spring principal, and it does
+     not invoke or exercise Spring Security authorization.
+
+### Standard Web Context Setup
 
 ```java
 @Before
 @Override
 public void setUp() throws Exception {
     super.setUp();
+    // Supplies legacy session data to controller helpers; does NOT configure Spring Security filters
     UserSessionData usd = new UserSessionData();
     usd.setSytemUserId(1);
     session = new MockHttpSession();
@@ -134,7 +158,8 @@ public void setUp() throws Exception {
 }
 ```
 
-Then pass `.session(session)` to `mockMvc.perform(...)`.
+Then pass `.session(session)` to `mockMvc.perform(...)` when the controller
+reads legacy session state.
 
 ### Data Strategy for Web Context Tests
 
@@ -146,15 +171,117 @@ Then pass `.session(session)` to `mockMvc.perform(...)`.
 
 ---
 
+## Pattern 3: Security Slice Tests (Spring Security Filters & Role Enforcement)
+
+When testing endpoint security, role gates, or `@PreAuthorize` authorization,
+**tests of the security filters must actually install them**.
+
+### Why Security Slice Tests?
+
+- `BaseWebContextSensitiveTest` bypasses security filters and pre-authenticates
+  as an administrator.
+- Security slice tests configure Spring Security with `@EnableWebSecurity`,
+  `@EnableMethodSecurity(prePostEnabled = true)`, and register the filter chain
+  on MockMvc using `apply(springSecurity())`.
+- Base class: Extend `org.openelisglobal.security.SecuritySliceMockMvcTest`,
+  which automatically builds `mockMvc`:
+  ```java
+  mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).apply(springSecurity()).build();
+  ```
+
+### The Three Required Security Cases
+
+Every secured REST endpoint should test the three canonical states:
+
+#### 1. Anonymous (Unauthenticated) Request $\to$ `401 Unauthorized`
+
+Tests that unauthenticated requests cannot access protected resources.
+
+```java
+@Test
+public void getSampleTypes_withoutAuthentication_returns401() throws Exception {
+    mockMvc.perform(get("/rest/sample-types")
+            .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isUnauthorized());
+}
+```
+
+#### 2. Denied-Role Request $\to$ `403 Forbidden`
+
+Tests that an authenticated user without the required role (e.g. `RESULTS` or
+`REPORTS` user accessing an admin-only endpoint) is blocked.
+
+```java
+@Test
+public void getSampleTypes_nonAdminRole_returns403() throws Exception {
+    mockMvc.perform(get("/rest/sample-types")
+            .with(user("worker").roles("RESULTS"))
+            .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isForbidden());
+}
+```
+
+#### 3. Permitted-Role Request $\to$ Clears Security Gate (`200 OK`, `204 No Content`, etc.)
+
+Tests that an authenticated user with the proper role (e.g. `ADMIN`) clears the
+security filter and reaches the controller logic.
+
+```java
+@Test
+public void getSampleTypes_adminRole_clearsAuthGate() throws Exception {
+    mockMvc.perform(get("/rest/sample-types")
+            .with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON))
+            .andExpect(status().isOk());
+}
+```
+
+#### Supplying `UserSessionData` with Spring Security
+
+If the controller logic under test also inspects legacy session data (such as
+`ControllerUtils.getSysUserId()`), supply both the Spring Security user and the
+mock session attribute:
+
+```java
+UserSessionData sessionData = new UserSessionData();
+sessionData.setSytemUserId(1);
+
+mockMvc.perform(put("/rest/sample-types/1")
+        .with(user("admin").roles("ADMIN"))
+        .sessionAttr(IActionConstants.USER_SESSION_DATA, sessionData)
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(requestBodyJson))
+        .andExpect(status().isOk());
+```
+
+Here, `.with(user(...))` sets the Spring Security principal for `@PreAuthorize`
+authorization, while `.sessionAttr(...)` provides legacy session values to
+controller method handlers.
+
+### Tested Codebase Examples
+
+- [SampleTypeManagementRestControllerSecurityTest.java](file:///home/coder/Documents/OpenELIS-Global-2/src/test/java/org/openelisglobal/common/management/controller/rest/SampleTypeManagementRestControllerSecurityTest.java)
+  — comprehensive role tests for `ADMIN` mutations, unauthenticated 401,
+  non-admin 403, and input validation.
+- [AlertRestControllerSecurityTest.java](file:///home/coder/Documents/OpenELIS-Global-2/src/test/java/org/openelisglobal/alert/controller/rest/AlertRestControllerSecurityTest.java)
+  — multi-role endpoint access testing (`RESULTS`, `VALIDATION`, `RECEPTION`,
+  `ADMIN`) and session data interaction.
+- [SecuritySliceMockMvcTest.java](file:///home/coder/Documents/OpenELIS-Global-2/src/test/java/org/openelisglobal/security/SecuritySliceMockMvcTest.java)
+  — base class for security slices that applies `springSecurity()`.
+
+---
+
 ## Common Strong Assertion Patterns
 
 ```java
 // Status assertions
 .andExpect(status().isOk())
+.andExpect(status().isUnauthorized())
+.andExpect(status().isForbidden())
 .andExpect(status().isBadRequest())
 .andExpect(status().isNotFound())
 .andExpect(status().isConflict())
-.andExpect(status().isServiceUnavailable())
+.andExpect(status().isUnprocessableEntity())
 
 // Strong JSON property assertions — always use exact scalar values
 .andExpect(jsonPath("$.status").value("SUCCESS"))
@@ -169,11 +296,11 @@ Then pass `.session(session)` to `mockMvc.perform(...)`.
 
 ## Naming & Execution
 
-| Suffix                           | Scope                                | Execution Speed           |
-| -------------------------------- | ------------------------------------ | ------------------------- |
-| `*RestControllerTest`            | Standalone MockMvc / Stateless logic | Instant (<100ms)          |
-| `*RestControllerIntegrationTest` | Web Context + Testcontainers DB      | Full integration (~5-15s) |
-| `*RestControllerSecurityTest`    | Security filter & role enforcement   | Full integration (~5-15s) |
+| Suffix                           | Scope                                | Filter / DB Setup                             | Execution Speed           |
+| -------------------------------- | ------------------------------------ | --------------------------------------------- | ------------------------- |
+| `*RestControllerTest`            | Standalone MockMvc / Stateless logic | No Spring Context / No DB                     | Instant (<100ms)          |
+| `*RestControllerIntegrationTest` | Web Context + Testcontainers DB      | Full Spring Context + DB (No Security Filter) | Full integration (~5-15s) |
+| `*RestControllerSecurityTest`    | Security filter & role enforcement   | Security filter chain via `springSecurity()`  | Fast slice (~1-3s)        |
 
 ### Command to Run Tests
 
