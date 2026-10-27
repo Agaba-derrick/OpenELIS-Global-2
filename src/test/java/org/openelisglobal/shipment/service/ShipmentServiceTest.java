@@ -24,6 +24,9 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
     @Autowired
     private ShipmentService shipmentService;
 
+    @Autowired
+    private ShippingBoxService shippingBoxService;
+
     @Before
     public void init() throws Exception {
         executeDataSetWithStateManagement("testdata/shipment_service.xml");
@@ -90,19 +93,18 @@ public class ShipmentServiceTest extends BaseWebContextSensitiveTest {
     }
 
     /**
-     * KNOWN LIMITATION: While {@code Shipment.systemUserId} is now mapped via JPA
-     * on develop (see #4409), {@link ShipmentServiceImpl#createShipment} still
-     * relies on audit/caller synchronization of {@code sysUserId} into
-     * {@code systemUserId} before insert (pending PR #3657). Once #3657 lands, this
-     * ignore should be lifted. Note that this test uses the fixture's unshipped box
-     * 3 to keep the create scenario clean and asserts the persisted
-     * {@code systemUserId}.
+     * Verifies that {@link ShipmentService#createShipment} persists a new shipment,
+     * assigns a generated ID, defaults the status to
+     * {@link ShipmentStatus#PENDING}, and stores the mapped {@code systemUserId}.
+     * Box 3 is loaded through {@link ShippingBoxService#getBoxById} so Hibernate
+     * receives a managed entity rather than a transient shell, avoiding
+     * {@code TransientPropertyValueException}. The actor is supplied explicitly
+     * ({@code systemUserId = 1}), so audit synchronization from PR #3657 is not
+     * required for this scenario.
      */
-    @Ignore("Blocked by #3657: Shipment.systemUserId is mapped via JPA, but ShipmentService.createShipment does not yet synchronize BaseObject.sysUserId to systemUserId; pending #3657 before lifting ignore")
     @Test
     public void createShipment_shouldGenerateIdAndDefaultToPending() {
-        ShippingBox box = new ShippingBox();
-        box.setId(3);
+        ShippingBox box = shippingBoxService.getBoxById(3);
 
         Shipment newShipment = new Shipment();
         newShipment.setShippingBox(box);
