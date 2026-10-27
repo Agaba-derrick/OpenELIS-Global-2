@@ -10,8 +10,12 @@ import {
   useServerData,
 } from "../../utils/useServerData";
 import KpiStrip from "./KpiStrip";
+import QualitySection from "./QualitySection";
 import { summaryUrl } from "./managementApi";
 import WorkloadSection from "./WorkloadSection";
+import EquipmentSection from "./EquipmentSection";
+import AntibiogramSection from "./AntibiogramSection";
+import StockSection from "./StockSection";
 import "./ManagementDashboard.css";
 
 export const SCOPES = [
@@ -26,6 +30,10 @@ export const SCOPES = [
 const SECTIONS = [
   { id: "kpis", Component: KpiStrip },
   { id: "workload", Component: WorkloadSection },
+  { id: "equipment", Component: EquipmentSection },
+  { id: "antibiogram", Component: AntibiogramSection },
+  { id: "stock", Component: StockSection },
+  { id: "quality", Component: QualitySection },
 ];
 
 const REFRESH_COOLDOWN_MS = 15000;
