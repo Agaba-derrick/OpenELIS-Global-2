@@ -85,7 +85,7 @@ import org.springframework.context.i18n.LocaleContextHolder;
 public class PatientCILNSPClinical_vreduit extends PatientReport implements IReportCreator, IReportParameterSetter {
 
     /** The report name the menu requests, under which each print is tracked. */
-    static final String REPORT_NAME = "patientCILNSP_vreduit";
+    public static final String REPORT_NAME = "patientCILNSP_vreduit";
 
     private final Set<String> analysisStatusIds = new HashSet<>();
     private final Set<String> validatedAnalysisStatusIds = new HashSet<>();
@@ -406,12 +406,61 @@ public class PatientCILNSPClinical_vreduit extends PatientReport implements IRep
     }
 
     /**
+     * What the Report Print Queue decided before this render: the version number
+     * the print creates, whether it amends a printed result, the recorded change
+     * summary and when the replaced version was issued.
+     */
+    public static final class IssueContext {
+        private final int version;
+        private final boolean amended;
+        private final String changeSummary;
+        private final String replacedIssueTime;
+        private final String issueTime;
+
+        public IssueContext(int version, boolean amended, String changeSummary, String replacedIssueTime) {
+            this(version, amended, changeSummary, replacedIssueTime, null);
+        }
+
+        /**
+         * @param issueTime when this version was first issued, as
+         *                  {@link #reportTime(Timestamp)} prints it; the footer shows
+         *                  it instead of the render time (FRS OGC-1031 FR-4.6)
+         */
+        public IssueContext(int version, boolean amended, String changeSummary, String replacedIssueTime,
+                String issueTime) {
+            this.version = version;
+            this.amended = amended;
+            this.changeSummary = changeSummary;
+            this.replacedIssueTime = replacedIssueTime;
+            this.issueTime = issueTime;
+        }
+    }
+
+    private IssueContext issueContext;
+
+    /**
+     * Set by the Report Print Queue pipeline; without it the corrected banner is
+     * derived from the corrected-result notes and the print history, as before.
+     */
+    public void setIssueContext(IssueContext issueContext) {
+        this.issueContext = issueContext;
+    }
+
+    /**
      * Whether a result on the order was corrected after its report was issued, and
      * when the report this one replaces was issued. Results Entry and Validation
      * mark a correction with the corrected-result note, which survives reprints, so
      * the banner is derived from that note rather than the one-time flag.
      */
     private void describeCorrection(PatientReportOrder order, OrderWork work) {
+        if (issueContext != null) {
+            order.setVersion(issueContext.version);
+            order.setIssueTime(issueContext.issueTime);
+            order.setChangeSummary(issueContext.changeSummary);
+            order.setCorrected(issueContext.amended);
+            order.setReplacedIssueTime(issueContext.replacedIssueTime);
+            return;
+        }
         Set<String> correctedTexts = new HashSet<>();
         for (Locale locale : List.of(Locale.ENGLISH, Locale.FRENCH, LocaleContextHolder.getLocale())) {
             correctedTexts.add(MessageUtil.getMessage("note.corrected.result", locale));
@@ -469,6 +518,18 @@ public class PatientCILNSPClinical_vreduit extends PatientReport implements IRep
             return messages.get("report.patient.awaitingValidation");
         }
         return messages.get("dashboard.in.progress.label");
+    }
+
+    /** A component without a result reads as an unreleased test row does. */
+    @Override
+    protected String componentInProgressText() {
+        return messages.get("dashboard.in.progress.label");
+    }
+
+    /** A component awaiting validation reads as an unreleased test row does. */
+    @Override
+    protected String componentAwaitingValidationText() {
+        return messages.get("report.patient.awaitingValidation");
     }
 
     @Override
@@ -793,7 +854,7 @@ public class PatientCILNSPClinical_vreduit extends PatientReport implements IRep
      * a two-digit year and, on a 12-hour clock, the compact "1:05PM", which keeps
      * the Completed and Samples columns to one line.
      */
-    static String reportTime(Timestamp time) {
+    public static String reportTime(Timestamp time) {
         if (time == null) {
             return null;
         }

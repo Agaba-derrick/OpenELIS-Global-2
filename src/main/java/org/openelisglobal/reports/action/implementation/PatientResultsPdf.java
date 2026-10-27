@@ -215,10 +215,16 @@ final class PatientResultsPdf {
 
     private PdfPTable correctedBanner(PatientReportOrder order) {
         String issued = order.getReplacedIssueTime() == null ? "" : order.getReplacedIssueTime();
+        String change = GenericValidator.isBlankOrNull(order.getChangeSummary())
+                ? messages.get("report.patient.corrected.seeReplaced")
+                : order.getChangeSummary();
+        String line = messages.format("report.patient.corrected.line", issued, change);
+        if (order.getVersion() != null) {
+            line = messages.format("report.patient.version", order.getVersion()) + " " + line;
+        }
         PdfPTable banner = table(new float[] { 1 });
         banner.setSpacingBefore(6);
-        PdfPCell cell = new PdfPCell(new Phrase(messages.format("report.patient.corrected.line", issued,
-                messages.get("report.patient.corrected.seeReplaced")), fonts.bold(8, Color.BLACK)));
+        PdfPCell cell = new PdfPCell(new Phrase(line, fonts.bold(8, Color.BLACK)));
         cell.setBorderWidth(1.5f);
         cell.setPadding(3);
         cell.setPaddingLeft(6);
@@ -789,9 +795,12 @@ final class PatientResultsPdf {
             canvas.lineTo(right, base + 11);
             canvas.stroke();
             canvas.restoreState();
-            ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT,
-                    new Phrase(messages.get("report.patient.issued") + " " + current.issued, fonts.regular(7, GRAY)),
-                    left, base + 2, 0);
+            String issued = messages.get("report.patient.issued") + " " + current.issued;
+            if (current.order.getVersion() != null) {
+                issued = messages.format("report.patient.footer.version", current.order.getVersion()) + DOT + issued;
+            }
+            ColumnText.showTextAligned(canvas, Element.ALIGN_LEFT, new Phrase(issued, fonts.regular(7, GRAY)), left,
+                    base + 2, 0);
             ColumnText.showTextAligned(canvas, Element.ALIGN_CENTER,
                     new Phrase(join(DOT, current.first.getAccessionNumber(), current.first.getSubjectNumber()),
                             fonts.regular(7, GRAY)),
@@ -837,7 +846,8 @@ final class PatientResultsPdf {
             this.total = writer.getDirectContent().createTemplate(14, 10);
             this.stripTotal = writer.getDirectContent().createTemplate(14, 10);
             this.strip = strip(order, first);
-            this.issued = PatientCILNSPClinical_vreduit.reportTime(new Timestamp(System.currentTimeMillis()));
+            this.issued = order.getIssueTime() != null ? order.getIssueTime()
+                    : PatientCILNSPClinical_vreduit.reportTime(new Timestamp(System.currentTimeMillis()));
         }
     }
 

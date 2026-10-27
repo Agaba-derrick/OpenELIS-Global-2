@@ -21,6 +21,9 @@ public final class PatientReportOrder {
     private String earliestCollection;
     private boolean collectionsDiffer = false;
     private String orderDate;
+    private Integer version;
+    private String issueTime;
+    private String changeSummary;
 
     /** Every non-cancelled, non-rejected result on the order is released. */
     public boolean isComplete() {
@@ -118,5 +121,42 @@ public final class PatientReportOrder {
 
     public void setOrderDate(String orderDate) {
         this.orderDate = orderDate;
+    }
+
+    /**
+     * The version number this print creates in the Report Print Queue, or null
+     * outside the queue pipeline.
+     */
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
+    }
+
+    /**
+     * When the version this print belongs to was first issued, as the report prints
+     * times; null when the print is not a queue version, in which case the render
+     * time is used.
+     */
+    public String getIssueTime() {
+        return issueTime;
+    }
+
+    public void setIssueTime(String issueTime) {
+        this.issueTime = issueTime;
+    }
+
+    /**
+     * What changed since the replaced version, as the queue recorded it; null when
+     * unknown.
+     */
+    public String getChangeSummary() {
+        return changeSummary;
+    }
+
+    public void setChangeSummary(String changeSummary) {
+        this.changeSummary = changeSummary;
     }
 }
