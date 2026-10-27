@@ -228,8 +228,14 @@ public class ResultLimitServiceTest extends BaseWebContextSensitiveTest {
 
     @Test
     public void getDisplayNormalRange_shouldFormatRangeWithSignificantDigits() {
-        String formattedRange = resultLimitService.getDisplayNormalRange(4.0, 10.0, "2", " - ");
-        Assert.assertEquals("4.00 - 10.00", formattedRange);
+        Locale previousFormatLocale = Locale.getDefault(Locale.Category.FORMAT);
+        try {
+            Locale.setDefault(Locale.Category.FORMAT, Locale.US);
+            String formattedRange = resultLimitService.getDisplayNormalRange(4.0, 10.0, "2", " - ");
+            Assert.assertEquals("4.00 - 10.00", formattedRange);
+        } finally {
+            Locale.setDefault(Locale.Category.FORMAT, previousFormatLocale);
+        }
     }
 
     @Test
