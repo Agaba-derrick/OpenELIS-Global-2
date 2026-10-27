@@ -5,7 +5,9 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.junit.After;
 import org.junit.Before;
@@ -102,8 +104,20 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
     @Autowired
     private SampleOrganizationService sampleOrganizationService;
 
+    private final Set<String> ownedSampleIds = new LinkedHashSet<>();
+    private final Set<String> ownedPatientIds = new LinkedHashSet<>();
+    private final Set<String> ownedProviderIds = new LinkedHashSet<>();
+    private final Set<String> ownedPersonIds = new LinkedHashSet<>();
+    private final List<SampleTbEntryForm> currentForms = new ArrayList<>();
+
     @Before
     public void setUp() throws Exception {
+        currentForms.clear();
+        ownedSampleIds.clear();
+        ownedPatientIds.clear();
+        ownedProviderIds.clear();
+        ownedPersonIds.clear();
+
         executeDataSetWithStateManagement(DATASET);
         PatientIdentityTypeMap.reset();
 
@@ -127,8 +141,45 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
 
     @After
     public void tearDown() {
+        for (SampleTbEntryForm form : currentForms) {
+            trackOwnedEntities(form);
+        }
+        currentForms.clear();
         PatientIdentityTypeMap.reset();
         cleanOwnedRows();
+    }
+
+    private void trackOwnedEntities(SampleTbEntryForm form) {
+        if (form == null) {
+            return;
+        }
+        if (form.getLabNo() != null) {
+            Sample sample = sampleService.getSampleByAccessionNumber(form.getLabNo());
+            if (sample != null && sample.getId() != null) {
+                ownedSampleIds.add(sample.getId());
+                SampleHuman query = new SampleHuman();
+                query.setSampleId(sample.getId());
+                SampleHuman sh = sampleHumanService.getDataBySample(query);
+                if (sh != null && sh.getProviderId() != null) {
+                    ownedProviderIds.add(sh.getProviderId());
+                    Provider prov = providerService.get(sh.getProviderId());
+                    if (prov != null && prov.getPerson() != null && prov.getPerson().getId() != null) {
+                        ownedPersonIds.add(prov.getPerson().getId());
+                    }
+                }
+            }
+        }
+        if (form.getTbSubjectNumber() != null) {
+            Patient p = patientService.getByExternalId(form.getTbSubjectNumber());
+            if (p != null) {
+                if (p.getId() != null && !"900".equals(p.getId())) {
+                    ownedPatientIds.add(p.getId());
+                }
+                if (p.getPerson() != null && p.getPerson().getId() != null && !"900".equals(p.getPerson().getId())) {
+                    ownedPersonIds.add(p.getPerson().getId());
+                }
+            }
+        }
     }
 
     private void ensureCanonicalObservationHistoryTypes() {
@@ -144,39 +195,55 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
     }
 
     private void cleanOwnedRows() {
-        jdbcTemplate.update("DELETE FROM clinlims.observation_history WHERE sample_id IN "
-                + "(SELECT id FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900')");
-        jdbcTemplate.update("DELETE FROM clinlims.analysis WHERE sampitem_id IN "
-                + "(SELECT id FROM clinlims.sample_item WHERE samp_id IN "
-                + "(SELECT id FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900'))");
-        jdbcTemplate.update("DELETE FROM clinlims.sample_organization WHERE samp_id IN "
-                + "(SELECT id FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900')");
-        jdbcTemplate.update("DELETE FROM clinlims.sample_human WHERE samp_id IN "
-                + "(SELECT id FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900')");
-        jdbcTemplate.update("DELETE FROM clinlims.sample_item WHERE samp_id IN "
-                + "(SELECT id FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900')");
-        jdbcTemplate.update(
-                "DELETE FROM clinlims.sample WHERE accession_number LIKE 'LAB-%' AND accession_number != 'LAB-900'");
+        if (!ownedSampleIds.isEmpty()) {
+            for (String sampleIdStr : ownedSampleIds) {
+                long sampleId = Long.parseLong(sampleIdStr);
+                jdbcTemplate.update("DELETE FROM clinlims.observation_history WHERE sample_id = ?", sampleId);
+                jdbcTemplate.update("DELETE FROM clinlims.analysis WHERE sampitem_id IN "
+                        + "(SELECT id FROM clinlims.sample_item WHERE samp_id = ?)", sampleId);
+                jdbcTemplate.update("DELETE FROM clinlims.sample_organization WHERE samp_id = ?", sampleId);
+                jdbcTemplate.update("DELETE FROM clinlims.sample_human WHERE samp_id = ?", sampleId);
+                jdbcTemplate.update("DELETE FROM clinlims.sample_item WHERE samp_id = ?", sampleId);
+                jdbcTemplate.update("DELETE FROM clinlims.sample WHERE id = ?", sampleId);
+            }
+            ownedSampleIds.clear();
+        }
 
-        jdbcTemplate.update("DELETE FROM clinlims.provider WHERE person_id IN "
-                + "(SELECT id FROM clinlims.person WHERE first_name = 'Doc' AND last_name = 'Brown')");
+        if (!ownedProviderIds.isEmpty()) {
+            for (String providerIdStr : ownedProviderIds) {
+                long providerId = Long.parseLong(providerIdStr);
+                jdbcTemplate.update("DELETE FROM clinlims.provider WHERE id = ?", providerId);
+            }
+            ownedProviderIds.clear();
+        }
 
-        jdbcTemplate.update("DELETE FROM clinlims.patient_patient_type WHERE patient_id IN "
-                + "(SELECT id FROM clinlims.patient WHERE external_id LIKE 'SUB-%' AND external_id != 'SUB-900')");
-        jdbcTemplate.update("DELETE FROM clinlims.patient_identity WHERE patient_id IN "
-                + "(SELECT id FROM clinlims.patient WHERE external_id LIKE 'SUB-%' AND external_id != 'SUB-900')");
-        jdbcTemplate.update("DELETE FROM clinlims.patient WHERE external_id LIKE 'SUB-%' AND external_id != 'SUB-900'");
+        if (!ownedPatientIds.isEmpty()) {
+            for (String patientIdStr : ownedPatientIds) {
+                if (!"900".equals(patientIdStr)) {
+                    long patientId = Long.parseLong(patientIdStr);
+                    jdbcTemplate.update("DELETE FROM clinlims.patient_patient_type WHERE patient_id = ?", patientId);
+                    jdbcTemplate.update("DELETE FROM clinlims.patient_identity WHERE patient_id = ?", patientId);
+                    jdbcTemplate.update("DELETE FROM clinlims.patient WHERE id = ?", patientId);
+                }
+            }
+            ownedPatientIds.clear();
+        }
 
         // Restore fixture patient 900 to point to fixture person 900 if modified by
         // test
         jdbcTemplate.update("UPDATE clinlims.patient SET person_id = 900, national_id = 'SUB-900' WHERE id = 900");
+        jdbcTemplate.update("UPDATE clinlims.person SET first_name = 'Jane', last_name = 'Smith' WHERE id = 900");
 
-        jdbcTemplate.update("DELETE FROM clinlims.person_address WHERE person_id != 900 AND person_id IN "
-                + "(SELECT id FROM clinlims.person WHERE (first_name IN ('Jane', 'UpdatedFirst') AND last_name = 'Smith') "
-                + "OR (first_name = 'Doc' AND last_name = 'Brown'))");
-        jdbcTemplate.update("DELETE FROM clinlims.person WHERE id != 900 AND "
-                + "((first_name IN ('Jane', 'UpdatedFirst') AND last_name = 'Smith') "
-                + "OR (first_name = 'Doc' AND last_name = 'Brown'))");
+        if (!ownedPersonIds.isEmpty()) {
+            for (String personIdStr : ownedPersonIds) {
+                if (!"900".equals(personIdStr)) {
+                    long personId = Long.parseLong(personIdStr);
+                    jdbcTemplate.update("DELETE FROM clinlims.person_address WHERE person_id = ?", personId);
+                    jdbcTemplate.update("DELETE FROM clinlims.person WHERE id = ?", personId);
+                }
+            }
+            ownedPersonIds.clear();
+        }
     }
 
     private String generateUniqueSubjectNumber() {
@@ -189,6 +256,7 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
 
     private SampleTbEntryForm createBaseForm() {
         SampleTbEntryForm form = new SampleTbEntryForm();
+        currentForms.add(form);
         form.setSysUserId(SYS_USER_ID);
         form.setPatientFirstName("Jane");
         form.setPatientLastName("Smith");
@@ -273,7 +341,7 @@ public class TbSampleServiceTest extends BaseWebContextSensitiveTest {
     }
 
     @Test
-    @Ignore("Quarantined: pre-existing quirk in TbSampleServiceImpl.persistSampleData creates a new Sample() without copying form.sampleId, causing sampleService.update() to fail (OGC-TB-UPDATE)")
+    @Ignore("Quarantined: pre-existing quirk in TbSampleServiceImpl.persistSampleData creates a new Sample() without copying form.sampleId, causing sampleService.update() to fail (#4850)")
     public void persistTbData_existingSample_updatesSample() {
         Sample existingSample = sampleService.getSampleByAccessionNumber(EXISTING_SAMPLE_ACCESSION_NUMBER);
         assertNotNull(existingSample);
