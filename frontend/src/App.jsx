@@ -14,6 +14,7 @@ import Home from "./components/Home";
 import Layout from "./components/layout/Layout";
 import StorageManagementPage from "./components/storage/StorageManagementPage";
 import AlertsDashboard from "./components/alerts/AlertsDashboard";
+import ManagementDashboard from "./components/dashboards/management/ManagementDashboard";
 import EQAProgramManagement from "./components/eqa/EQAProgram/ProgramManagement";
 import MyCyclesPage from "./components/eqa/MyCycles/MyCyclesPage";
 import ProviderSchemeList from "./components/eqa/Provider/ProviderSchemeList";
@@ -147,6 +148,7 @@ import SampleBatchEntrySetup from "./components/batchOrderEntry/SampleBatchEntry
 import AuditTrailReportIndex from "./components/reports/auditTrailReport/Index";
 import LaporanHasilReport from "./components/reports/compliance/LaporanHasilReport";
 import ReportPrintQueue from "./components/reports/printQueue/ReportPrintQueue";
+import SentMessages from "./components/reports/sentMessages/SentMessages";
 import ManualEntryHelper from "./components/reports/vectorSurveillance/ManualEntryHelper";
 import { Roles } from "./components/utils/Utils";
 import NoteBookInstanceEntryForm from "./components/notebook/NoteBookInstanceEntryForm";
@@ -944,6 +946,13 @@ export default function App() {
                   render={() => <AlertsDashboard />}
                   role={[Roles.RECEPTION, Roles.RESULTS]}
                 />
+                <SecureRoute
+                  path="/dashboards/management"
+                  exact
+                  render={() => <ManagementDashboard />}
+                  permission="dashboards.view.management"
+                  role={Roles.GLOBAL_ADMIN}
+                />
                 {/* QA v0.5 IA rehome (OGC-691): EQA and QC pages moved under
                     /qa/*. Kept so bookmarks and anything still linking an old
                     path land on the new page. */}
@@ -1740,6 +1749,12 @@ export default function App() {
                   exact
                   render={() => <ReportPrintQueue />}
                   role={Roles.REPORTS}
+                />
+                <SecureRoute
+                  path="/SentMessages"
+                  exact
+                  render={() => <SentMessages />}
+                  role={[Roles.REPORTS, Roles.GLOBAL_ADMIN]}
                 />
                 <SecureRoute
                   path="/VectorManualEntry"

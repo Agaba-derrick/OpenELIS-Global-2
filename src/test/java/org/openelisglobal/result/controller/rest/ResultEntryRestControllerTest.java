@@ -25,6 +25,7 @@ import org.openelisglobal.analysis.service.AnalysisService;
 import org.openelisglobal.common.action.IActionConstants;
 import org.openelisglobal.common.services.DisplayListService;
 import org.openelisglobal.common.services.IStatusService;
+import org.openelisglobal.common.services.StatusService.AnalysisStatus;
 import org.openelisglobal.common.util.ConfigurationProperties;
 import org.openelisglobal.common.util.ConfigurationProperties.Property;
 import org.openelisglobal.common.util.DateUtil;
@@ -191,6 +192,38 @@ public class ResultEntryRestControllerTest extends BaseWebContextSensitiveTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.resultId").value("3"))
                 .andExpect(jsonPath("$.rawResultValue").value("90.0")).andExpect(jsonPath("$.resultValue").exists())
                 .andExpect(jsonPath("$.analysisStatusId").value(analysisService.getStatusId(analysisService.get("1"))));
+    }
+
+    /**
+     * A test with several parts shows each part with its own status, and a save can
+     * move the test from one status to another, so the save reports every part's
+     * status: the saved part awaits validation, the part without a value is not
+     * started. A result bound to no part belongs to the primary.
+     */
+    @Test
+    public void save_reportsEveryPartsStatus() throws Exception {
+        jdbc.update("INSERT INTO clinlims.test_result_component (id, test_id, code, label, display_order, is_active,"
+                + " lastupdated, is_primary) VALUES ('rerc-a', 1, 'A', 'Part A', 0, 'Y', NOW(), true),"
+                + " ('rerc-b', 1, 'B', 'Part B', 1, 'Y', NOW(), false)");
+        try {
+            mockMvc.perform(post("/rest/results-entry/analysis/1/result").contentType(MediaType.APPLICATION_JSON)
+                    .content(saveBody("1", "3", "1", "90.0", currentToken("1"))).session(session))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.componentStatusIds['rerc-a']")
+                            .value(statusService.getStatusID(AnalysisStatus.TechnicalAcceptance)))
+                    .andExpect(jsonPath("$.componentStatusIds['rerc-b']")
+                            .value(statusService.getStatusID(AnalysisStatus.NotStarted)));
+        } finally {
+            jdbc.update("DELETE FROM clinlims.test_result_component WHERE id IN ('rerc-a', 'rerc-b')");
+        }
+    }
+
+    /** A test with one part has no part statuses to report. */
+    @Test
+    public void save_ofASinglePartTestReportsNoPartStatuses() throws Exception {
+        mockMvc.perform(post("/rest/results-entry/analysis/1/result").contentType(MediaType.APPLICATION_JSON)
+                .content(saveBody("1", "3", "1", "90.0", currentToken("1"))).session(session))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.componentStatusIds").doesNotExist());
     }
 
     /**
@@ -578,6 +611,24 @@ public class ResultEntryRestControllerTest extends BaseWebContextSensitiveTest {
         } finally {
             reset(webApplicationContext.getBean(DisplayListService.class));
         }
+    }
+
+    /**
+     * OGC-1544 — the acknowledgement judges the value as reported: 49.6 on a test
+     * reported to no decimal places reads 50, which is not below the critical bound
+     * of 50, so nothing is owed and the save goes through.
+     */
+    @Test
+    public void save_valueCriticalOnlyBeforeRounding_needsNoAcknowledgement() throws Exception {
+        seedNumericResultLimit();
+        jdbc.update("UPDATE clinlims.test_result SET significant_digits = '0' WHERE test_id = 1");
+
+        mockMvc.perform(post("/rest/results-entry/analysis/1/result").contentType(MediaType.APPLICATION_JSON)
+                .content(saveBody("1", "3", "1", "49.6", currentToken("1"))).session(session))
+                .andExpect(status().isOk());
+
+        assertEquals("49.6", resultService.get("3").getValue());
+        assertEquals(Integer.valueOf(0), acknowledgementCount());
     }
 
     /**
