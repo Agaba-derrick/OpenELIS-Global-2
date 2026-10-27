@@ -6,13 +6,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import org.junit.Test;
+import org.openelisglobal.dashboard.management.antibiogram.AntibiogramService;
 import org.openelisglobal.dashboard.management.controller.rest.ManagementDashboardRestController;
+import org.openelisglobal.dashboard.management.equipment.EquipmentService;
 import org.openelisglobal.dashboard.management.kpi.KpiService;
 import org.openelisglobal.dashboard.management.kpi.ManagementKpis;
+import org.openelisglobal.dashboard.management.quality.QualityRollup;
+import org.openelisglobal.dashboard.management.quality.QualityRollupService;
 import org.openelisglobal.dashboard.management.service.ManagementDashboardService;
 import org.openelisglobal.dashboard.management.service.ManagementSummary;
+import org.openelisglobal.dashboard.management.stock.StockService;
 import org.openelisglobal.dashboard.management.workload.WorkloadService;
 import org.openelisglobal.security.SecuritySliceMockMvcTest;
 import org.openelisglobal.testsupport.SliceSecurityConfig;
@@ -75,6 +82,59 @@ public class ManagementDashboardRestControllerSecurityTest extends SecuritySlice
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    public void equipmentRefusesABenchRoleWithoutTheGrant() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/equipment").with(user("bench").roles("RESULTS", "ADMIN")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    public void equipmentWithAnUnknownScopeIsABadRequest() throws Exception {
+        mockMvc.perform(
+                get("/rest/dashboards/management/equipment?scope=decade").with(user("admin").roles("GLOBAL_ADMIN")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void antibiogramRefusesABenchRoleWithoutTheGrant() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/antibiogram").with(user("bench").roles("RESULTS", "ADMIN")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    public void antibiogramWithAnUnknownScopeIsABadRequest() throws Exception {
+        mockMvc.perform(
+                get("/rest/dashboards/management/antibiogram?scope=decade").with(user("admin").roles("GLOBAL_ADMIN")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void stockRefusesABenchRoleWithoutTheGrant() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/stock").with(user("bench").roles("RESULTS", "ADMIN")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    public void qualityNeedsTheDashboardGrant() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/quality")
+                .with(user("qa").authorities(new SimpleGrantedAuthority("qa.manage.qi"))))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    public void qualityRejectsAnUnknownScope() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/quality?scope=decade")
+                .with(user("manager").authorities(new SimpleGrantedAuthority("dashboards.view.management"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void qualityAnswersTheDashboardGrant() throws Exception {
+        mockMvc.perform(get("/rest/dashboards/management/quality?scope=90d")
+                .with(user("manager").authorities(new SimpleGrantedAuthority("dashboards.view.management"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.components").isArray());
+    }
+
     @Configuration
     static class TestConfig {
 
@@ -95,12 +155,37 @@ public class ManagementDashboardRestControllerSecurityTest extends SecuritySlice
                 public Map<String, BigDecimal> onTimeByLabUnit(ScopeRange scope) {
                     return Map.of();
                 }
+
+                @Override
+                public BigDecimal qcPassRate(LocalDate from, LocalDate to) {
+                    return null;
+                }
             };
         }
 
         @Bean
         WorkloadService workloadService() {
             return scope -> null;
+        }
+
+        @Bean
+        EquipmentService equipmentService() {
+            return scope -> null;
+        }
+
+        @Bean
+        AntibiogramService antibiogramService() {
+            return scope -> null;
+        }
+
+        @Bean
+        StockService stockService() {
+            return () -> null;
+        }
+
+        @Bean
+        QualityRollupService qualityRollupService() {
+            return scope -> new QualityRollup(null, null, List.of());
         }
 
         @Bean
