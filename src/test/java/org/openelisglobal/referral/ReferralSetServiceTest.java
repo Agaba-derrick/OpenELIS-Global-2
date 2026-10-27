@@ -720,11 +720,9 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         Sample sample = sampleService.get("1");
         assertEquals("1", sample.getStatusId());
 
-        org.openelisglobal.analysis.valueholder.Analysis analysis = org.openelisglobal.spring.util.SpringContext
-                .getBean(org.openelisglobal.analysis.service.AnalysisService.class).get("701");
+        Analysis analysis = analysisService.get("701");
         analysis.setStatusId("2");
-        org.openelisglobal.spring.util.SpringContext.getBean(org.openelisglobal.analysis.service.AnalysisService.class)
-                .update(analysis);
+        analysisService.update(analysis);
 
         ReferralResult existingRR = referralResultService.getReferralResultById("904");
         Result newResult = new Result();
@@ -754,13 +752,17 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
         Sample sample = sampleService.get("1");
         assertEquals("1", sample.getStatusId());
 
-        ReferralResult existingRR = referralResultService.getReferralResultById("901");
+        Analysis analysis = analysisService.get("701");
+        analysis.setStatusId("2");
+        analysisService.update(analysis);
+
+        ReferralResult existingRR = referralResultService.getReferralResultById("904");
         Result newResult = new Result();
         newResult.setValue("");
         newResult.setResultType("T");
         existingRR.setResult(newResult);
 
-        Referral referral = referralService.get("101");
+        Referral referral = referralService.get("103");
         ReferralSet referralSet = new ReferralSet();
         referralSet.setReferral(referral);
         referralSet.getUpdatableReferralResults().addAll(Arrays.asList(existingRR));
@@ -778,17 +780,33 @@ public class ReferralSetServiceTest extends BaseWebContextSensitiveTest {
 
     @Test
     public void updateReferralSets_shouldNotPromoteSampleWhenAnalysisIsNotFinalized() {
-
         Sample sample = sampleService.get("1");
         assertEquals("1", sample.getStatusId());
 
-        ReferralResult existingRR = referralResultService.getReferralResultById("901");
+        Analysis analysis = analysisService.get("701");
+        analysis.setStatusId("2");
+        analysisService.update(analysis);
+
+        // Add a second, non-referred analysis on the same sample that remains
+        // unfinished (status "1" != Finalized)
+        Analysis sibling = new Analysis();
+        sibling.setSampleItem(analysis.getSampleItem());
+        sibling.setTest(analysis.getTest());
+        sibling.setAnalysisType("ROUTINE");
+        sibling.setRevision("1");
+        sibling.setStartedDate(analysis.getStartedDate());
+        sibling.setStatusId("1");
+        sibling.setFhirUuid(UUID.randomUUID());
+        sibling.setSysUserId("1");
+        analysisService.insert(sibling);
+
+        ReferralResult existingRR = referralResultService.getReferralResultById("904");
         Result newResult = new Result();
         newResult.setValue("Reported Value");
         newResult.setResultType("T");
         existingRR.setResult(newResult);
 
-        Referral referral = referralService.get("101");
+        Referral referral = referralService.get("103");
         ReferralSet referralSet = new ReferralSet();
         referralSet.setReferral(referral);
         referralSet.getUpdatableReferralResults().addAll(Arrays.asList(existingRR));
