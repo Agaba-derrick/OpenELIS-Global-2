@@ -425,7 +425,7 @@ public class SamplePatientEntryRestControllerIntegrationTest extends BaseWebCont
         order.put("sampleXML", emptySampleManifest());
 
         save(order, 400).andExpect(jsonPath("$.fieldErrors[?(@.field == 'sampleOrderItems')].defaultMessage")
-                .value(hasItem("errors.no.sample")));
+                .value(hasItem("The appropriate sample for each test must selected.")));
 
         assertEquals("An order with no sample items must not create a sample", Integer.valueOf(0), sampleCount());
     }
@@ -449,13 +449,13 @@ public class SamplePatientEntryRestControllerIntegrationTest extends BaseWebCont
 
         MvcResult result = save(order, 400)
                 .andExpect(jsonPath("$.fieldErrors[?(@.field == 'sampleOrderItems')].defaultMessage")
-                        .value(hasItem("errors.requester.org.or.requestor.required")))
+                        .value(hasItem("At least one of Requesting Organization or Requestor contact is required.")))
                 .andReturn();
 
         String body = result.getResponse().getContentAsString();
 
         assertTrue("The requester validation error must be returned",
-                body.contains("errors.requester.org.or.requestor.required"));
+                body.contains("At least one of Requesting Organization or Requestor contact is required."));
 
         assertFalse("An environmental order must not produce patient validation errors",
                 body.contains("patientProperties"));
