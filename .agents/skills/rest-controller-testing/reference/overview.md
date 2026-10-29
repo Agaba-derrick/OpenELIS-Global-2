@@ -124,8 +124,10 @@ principal** and **legacy OpenELIS session attributes**:
 
 1. **`BaseWebContextSensitiveTest` Security Context**:
    - `BaseWebContextSensitiveTest` is annotated with `@WithDaemonUser`, which
-     installs a `DaemonAuthenticationToken("1")` with `ROLE_SYSTEM` directly
-     into Spring's `SecurityContextHolder`.
+     initially supplies a `DaemonAuthenticationToken("1")` with `ROLE_SYSTEM`.
+     However, `BaseWebContextSensitiveTest.setDefaultTestAuthentication()`
+     subsequently installs an `admin` principal with `ROLE_ADMIN` and
+     `ROLE_RESULTS` in `@Before` directly into Spring's `SecurityContextHolder`.
    - Its `MockMvc` is built via
      `MockMvcBuilders.webAppContextSetup(this.webApplicationContext).build()`,
      which **does not register the security filter chain** (it does not call

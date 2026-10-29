@@ -38,8 +38,9 @@ public class ${ControllerName}IntegrationTest extends BaseWebContextSensitiveTes
         // TODO: insert test rows here
         // jdbc.update("INSERT INTO clinlims.my_table (id, ...) VALUES (99901, ...)");
 
-        // Note: BaseWebContextSensitiveTest installs @WithDaemonUser (admin role)
-        // and does NOT register Spring Security filters on super.mockMvc.
+        // Note: BaseWebContextSensitiveTest is annotated with @WithDaemonUser, but
+        // setDefaultTestAuthentication() installs admin (ROLE_ADMIN, ROLE_RESULTS) in @Before.
+        // It does NOT register Spring Security filters on super.mockMvc.
         // UserSessionData in the mock session supplies legacy OpenELIS controller data
         // (e.g. systemUserId); it does NOT select the Spring principal or test authorization.
         UserSessionData usd = new UserSessionData();

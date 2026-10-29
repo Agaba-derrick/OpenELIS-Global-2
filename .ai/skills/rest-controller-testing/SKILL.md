@@ -33,8 +33,10 @@ There are **three key patterns** for testing controllers in this repository:
 - Extends `BaseWebContextSensitiveTest` (which injects `super.mockMvc` wired to
   full Spring context + Testcontainers DB).
 - **Authentication & Security Filter Boundary**:
-  - `BaseWebContextSensitiveTest` runs under `@WithDaemonUser`, which installs
-    an administrator token directly into the Spring `SecurityContextHolder`.
+  - `BaseWebContextSensitiveTest` is annotated with `@WithDaemonUser` (initially
+    supplying a daemon token), but `setDefaultTestAuthentication()` subsequently
+    installs `admin` with `ROLE_ADMIN` and `ROLE_RESULTS` in `@Before` into
+    `SecurityContextHolder`.
   - Its built-in `super.mockMvc` is initialized without
     `.apply(springSecurity())`, so the Spring Security filter chain is **not**
     registered.
