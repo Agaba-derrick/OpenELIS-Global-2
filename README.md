@@ -68,15 +68,26 @@ We welcome community contributions to help improve OpenELIS Global!
 
 ### For Offline Installation Using the OpenELIS Global2 Installer
 
-Download the OpenELIS Global Installer for each Release from the
-[Release Assets](https://github.com/DIGI-UW/OpenELIS-Global-2/releases)
+Prepackaged offline installers are published with the
+[openelis-docker releases](https://github.com/DIGI-UW/openelis-docker/releases),
+not with the releases of this repository. An openelis-docker release carries the
+version number of the OpenELIS Global release it packages (for example `3.2.3.0`
+or `3.3.0`), and its notes name the Analyzer Bridge version shipped with it.
 
-Supported versions, branches, and the versioning policy are described in
-[RELEASES.md](RELEASES.md).
+1. Choose the OpenELIS Global release to install. The supported release lines,
+   branches and the versioning policy are described in
+   [RELEASES.md](RELEASES.md).
+2. Open the openelis-docker release with the same version number and download
+   `OpenELIS-Global_<version>_docker_installer.tar.gz` from its assets.
+3. Follow the
+   [offline installation steps](https://github.com/DIGI-UW/openelis-docker#offline-installation)
+   that come with the package: `run.sh` for a first installation, `upgrade.sh`
+   for an existing one. The
+   [Offline install of OpenELIS Global](https://uwdigi.atlassian.net/wiki/spaces/oeg/pages/1711636518/Offline+install+of+OpenELIS+Global)
+   wiki page walks a lab server through the same steps.
 
-see full
-[installation instructions](https://uwdigi.atlassian.net/wiki/x/EoBIDg#Downloaded-Installer-Offline-Setup)
-for Offline Installation
+The packages are built and published by the openelis-docker release workflow, so
+there is nothing to build or package locally.
 
 ### For running OpenELIS Global2 in Docker with default Settings out of the Box
 
